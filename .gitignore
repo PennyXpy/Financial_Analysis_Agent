@@ -1,0 +1,70 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+.env/
+.venv/
+env/
+ENV/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Logs
+*.log
+logs/
+*.out
+
+# Test and cache
+.pytest_cache/
+.cache/
+coverage/
+htmlcov/
+*.cover
+*.coverage
+nosetests.xml
+coverage.xml
+
+# Model and data outputs
+*.pt
+*.pth
+*.h5
+*.pkl
+*.ckpt
+*.npz
+*.npy
+*.csv
+*.tsv
+*.jsonl
+*.parquet
+data/
+datasets/
+outputs/
+results/
+checkpoints/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+.DS_Store
+Thumbs.db
+
+# IDE settings
+.vscode/
+.idea/
+
+# System files
+*.so
+*.dll
+*.dylib
+
+# Requirements auto-gen backup
+requirements-lock.txt
+
+# Environment variables
+.env
