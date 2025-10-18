@@ -8,3 +8,4 @@ langchain-mcp-adapters==0.1.9
 transformers==4.51.3
 huggingface-hub==0.34.4
 uv==0.8.12
+bitsandbytes

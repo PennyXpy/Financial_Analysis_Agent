@@ -1,5 +1,7 @@
 # 工具函数，包括Baostock登录上下文管理器和日志设置
 import baostock as bs
+import time
+import threading
 import os
 import sys
 import logging
@@ -22,51 +24,78 @@ def setup_logging(level=logging.INFO):
 # 获取此模块的日志记录器实例（可选，但这是好习惯）
 logger = logging.getLogger(__name__)
 
+# 全局锁，避免并发登录/登出相互“踢下线”
+_baostock_lock = threading.Lock()
+
+# Safe Login and Safe Logout
+def safe_login(retries: int = 3, delay: int = 2):
+    """带重试和互斥锁的安全登录"""
+    with _baostock_lock:
+        for i in range(1, retries + 1):
+            try:
+                bs.logout()
+            except Exception:
+                pass
+            lg = bs.login()
+            if lg.error_code == "0":
+                logger.info("✅ Baostock login successful (safe mode)")
+                return
+            logger.warning(f"⚠️ Baostock login failed (try {i}/{retries}): {lg.error_msg}")
+            time.sleep(delay)
+        raise LoginError("❌ Baostock login failed after multiple retries.")
+
+def safe_logout():
+    """安全登出（有锁，忽略非致命错误）"""
+    with _baostock_lock:
+        try:
+            bs.logout()
+            logger.info("✅ Baostock logout successful (safe mode)")
+        except Exception as e:
+            logger.warning(f"⚠️ Baostock logout error ignored: {e}")
+
+
 # --- Baostock上下文管理器 ---
 @contextmanager
 def baostock_login_context():
-    """上下文管理器，处理Baostock登录和登出，抑制标准输出消息"""
-    # 重定向标准输出以抑制登录/登出消息
+    """上下文管理器：抑制stdout + 安全登录/登出（带锁+重试）"""
+
+    # --- 抑制登录期 stdout ---
     original_stdout_fd = sys.stdout.fileno()
     saved_stdout_fd = os.dup(original_stdout_fd)
     devnull_fd = os.open(os.devnull, os.O_WRONLY)
-
     os.dup2(devnull_fd, original_stdout_fd)
     os.close(devnull_fd)
 
-    logger.debug("Attempting Baostock login...")
-    lg = bs.login()
-    logger.debug(f"Login result: code={lg.error_code}, msg={lg.error_msg}")
-
-    # 恢复标准输出
-    os.dup2(saved_stdout_fd, original_stdout_fd)
-    os.close(saved_stdout_fd)
-
-    if lg.error_code != '0':
-        # 在抛出异常前记录错误
-        logger.error(f"Baostock login failed: {lg.error_msg}")
-        raise LoginError(f"Baostock login failed: {lg.error_msg}")
+    # 登录（安全版，失败会抛出 LoginError）
+    try:
+        safe_login()
+    finally:
+        # 一定要恢复 stdout（即使登录报错也要恢复）
+        os.dup2(saved_stdout_fd, original_stdout_fd)
+        os.close(saved_stdout_fd)
 
     logger.info("Baostock login successful.")
     try:
-        yield  # API调用在这里进行
+        # ---- 这里执行你的 API 调用 ----
+        yield
     finally:
-        # 再次重定向标准输出以进行登出
+        # --- 抑制登出期 stdout ---
         original_stdout_fd = sys.stdout.fileno()
         saved_stdout_fd = os.dup(original_stdout_fd)
         devnull_fd = os.open(os.devnull, os.O_WRONLY)
-
         os.dup2(devnull_fd, original_stdout_fd)
         os.close(devnull_fd)
 
-        logger.debug("Attempting Baostock logout...")
-        bs.logout()
-        logger.debug("Logout completed.")
+        # 登出（安全版）
+        try:
+            safe_logout()
+        finally:
+            # 恢复 stdout
+            os.dup2(saved_stdout_fd, original_stdout_fd)
+            os.close(saved_stdout_fd)
 
-        # 恢复标准输出
-        os.dup2(saved_stdout_fd, original_stdout_fd)
-        os.close(saved_stdout_fd)
         logger.info("Baostock logout successful.")
+
 
 # --- 通用数据获取函数 ---
 

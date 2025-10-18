@@ -134,7 +134,7 @@ def create_model_and_tokenizer():
     """创建模型和分词器"""
     print("正在加载模型和分词器...")
     
-    model_name = "/root/code/Finance/Qwen"
+    model_name = "Qwen/Qwen2.5-7B-Instruct"
     
     # 加载分词器
     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
@@ -146,7 +146,8 @@ def create_model_and_tokenizer():
         model_name,
         torch_dtype=torch.float16,
         device_map="auto",
-        trust_remote_code=True
+        trust_remote_code=True,
+        load_in_8bit=True,
     )
     
     # 准备模型进行训练
@@ -221,7 +222,7 @@ def train_model(model, tokenizer, train_dataset, eval_dataset, output_dir="./qwe
 def main():
     """主函数"""
     # 数据路径
-    csv_path = "nasdaq_news_sentiment/sentiment_deepseek_new_cleaned_nasdaq_news_full.csv"
+    csv_path = "datasets/nasdaq_news_sentiment/sentiment_deepseek_new_cleaned_nasdaq_news_full.csv"
     
     # 加载和预处理数据
     df = load_and_preprocess_data(csv_path)
