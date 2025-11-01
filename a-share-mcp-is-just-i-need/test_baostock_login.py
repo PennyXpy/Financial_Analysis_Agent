@@ -1,19 +1,18 @@
 import baostock as bs
 
-print("🔍 正在测试 Baostock 登录...")
+print("🔍 Testing Baostock login...")
 
-# 登录
+# Login
 lg = bs.login()
-print(f"登录返回码: {lg.error_code}")
-print(f"登录消息: {lg.error_msg}")
+print(f"Login return code: {lg.error_code}")
+print(f"Login message: {lg.error_msg}")
 
-# 判断结果
+# Check result
 if lg.error_code == '0':
-    print("✅ Baostock 登录成功！")
+    print("✅ Baostock login successful!")
 else:
-    print("❌ 登录失败，请检查网络或 Baostock 服务。")
+    print("❌ Login failed. Please check your network or Baostock service status.")
 
-# 登出
+# Logout
 bs.logout()
-print("🏁 已登出 Baostock。")
-
+print("🏁 Logged out from Baostock.")

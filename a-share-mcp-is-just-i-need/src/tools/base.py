@@ -1,6 +1,6 @@
 """
-MCP工具的基础工具模块
-包含用于调用数据源的共享辅助函数
+Base tool module for MCP utilities.
+Contains shared helper functions for invoking data sources safely.
 """
 import logging
 from typing import Callable, Optional
@@ -19,23 +19,24 @@ def safe_data_source_call(
     **kwargs
 ) -> str:
     """
-    通用的安全数据源调用函数，统一处理所有异常和错误情况
-    
-    参数:
-        tool_name: 工具名称，用于日志记录
-        data_source_method: 要调用的数据源方法
-        data_type_name: 数据类型名称（用于日志记录）
-        **kwargs: 传递给数据源方法的关键字参数
-        
-    返回:
-        Markdown格式的结果字符串或错误消息
+    A general-purpose safe wrapper for data source calls.
+    Handles all exceptions and error cases consistently.
+
+    Args:
+        tool_name: Name of the tool (for logging).
+        data_source_method: The data source method to invoke.
+        data_type_name: Type of data being fetched (for logging).
+        **kwargs: Keyword arguments to pass to the data source method.
+
+    Returns:
+        A Markdown-formatted result string or an error message.
     """
     try:
-        # 调用数据源方法
+        # Invoke the data source method
         df = data_source_method(**kwargs)
         logger.info(f"Successfully retrieved {data_type_name} data.")
         return format_df_to_markdown(df)
-        
+
     except NoDataFoundError as e:
         logger.warning(f"NoDataFoundError: {e}")
         return f"Error: {e}"
@@ -55,7 +56,7 @@ def safe_data_source_call(
 
 def call_financial_data_tool(
     tool_name: str,
-    # 传递绑定的方法，如 active_data_source.get_profit_data
+    # Pass the bound method, e.g., active_data_source.get_profit_data
     data_source_method: Callable,
     data_type_name: str,
     code: str,
@@ -63,22 +64,22 @@ def call_financial_data_tool(
     quarter: int
 ) -> str:
     """
-    用于减少财务数据工具重复代码的辅助函数
+    Helper function for financial data tools to reduce repetitive code.
 
-    参数:
-        tool_name: 工具名称，用于日志记录
-        data_source_method: 要在数据源上调用的方法
-        data_type_name: 财务数据类型（用于日志记录）
-        code: 股票代码
-        year: 查询年份
-        quarter: 查询季度
+    Args:
+        tool_name: Name of the tool (for logging).
+        data_source_method: The data source method to invoke.
+        data_type_name: Financial data type (for logging).
+        code: Stock code.
+        year: Target year.
+        quarter: Target quarter.
 
-    返回:
-        包含结果的Markdown格式字符串或错误消息
+    Returns:
+        A Markdown-formatted result string or an error message.
     """
     logger.info(f"Tool '{tool_name}' called for {code}, {year}Q{quarter}")
     try:
-        # 基本验证
+        # Basic input validation
         if not year.isdigit() or len(year) != 4:
             logger.warning(f"Invalid year format requested: {year}")
             return f"Error: Invalid year '{year}'. Please provide a 4-digit year."
@@ -86,11 +87,13 @@ def call_financial_data_tool(
             logger.warning(f"Invalid quarter requested: {quarter}")
             return f"Error: Invalid quarter '{quarter}'. Must be between 1 and 4."
 
-        # 调用已实例化的active_data_source上的相应方法
+        # Call the corresponding method on the instantiated active_data_source
         df = data_source_method(code=code, year=year, quarter=quarter)
         logger.info(
-            f"Successfully retrieved {data_type_name} data for {code}, {year}Q{quarter}.")
-        # 对财务表格使用较小的限制？
+            f"Successfully retrieved {data_type_name} data for {code}, {year}Q{quarter}."
+        )
+
+        # Return formatted financial table
         return format_df_to_markdown(df)
 
     except NoDataFoundError as e:
@@ -107,7 +110,8 @@ def call_financial_data_tool(
         return f"Error: Invalid input parameter. {e}"
     except Exception as e:
         logger.exception(
-            f"Unexpected Exception processing {tool_name} for {code}: {e}")
+            f"Unexpected Exception processing {tool_name} for {code}: {e}"
+        )
         return f"Error: An unexpected error occurred: {e}"
 
 
@@ -117,26 +121,26 @@ def call_macro_data_tool(
     data_type_name: str,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
-    **kwargs  # 用于额外参数，如 year_type
+    **kwargs  # Extra arguments, such as year_type
 ) -> str:
     """
-    宏观经济数据工具的辅助函数
+    Helper function for macroeconomic data tools.
 
-    参数:
-        tool_name: 工具名称，用于日志记录
-        data_source_method: 要在数据源上调用的方法
-        data_type_name: 数据类型（用于日志记录）
-        start_date: 可选的开始日期
-        end_date: 可选的结束日期
-        **kwargs: 传递给data_source_method的额外关键字参数
+    Args:
+        tool_name: Name of the tool (for logging).
+        data_source_method: The data source method to invoke.
+        data_type_name: Data type (for logging).
+        start_date: Optional start date.
+        end_date: Optional end date.
+        **kwargs: Additional keyword arguments for the data source method.
 
-    返回:
-        包含结果的Markdown格式字符串或错误消息
+    Returns:
+        A Markdown-formatted result string or an error message.
     """
     date_range_log = f"from {start_date or 'default'} to {end_date or 'default'}"
     kwargs_log = f", extra_args={kwargs}" if kwargs else ""
     logger.info(f"Tool '{tool_name}' called {date_range_log}{kwargs_log}")
-    
+
     return safe_data_source_call(
         tool_name,
         data_source_method,
@@ -154,20 +158,20 @@ def call_index_constituent_tool(
     date: Optional[str] = None
 ) -> str:
     """
-    指数成分股工具的辅助函数
+    Helper function for index constituent stock tools.
 
-    参数:
-        tool_name: 工具名称，用于日志记录
-        data_source_method: 要在数据源上调用的方法
-        index_name: 指数名称（用于日志记录）
-        date: 可选的查询日期
+    Args:
+        tool_name: Name of the tool (for logging).
+        data_source_method: The data source method to invoke.
+        index_name: Index name (for logging).
+        date: Optional query date.
 
-    返回:
-        包含结果的Markdown格式字符串或错误消息
+    Returns:
+        A Markdown-formatted result string or an error message.
     """
     log_msg = f"Tool '{tool_name}' called for date={date or 'latest'}"
     logger.info(log_msg)
-    
+
     return safe_data_source_call(
         tool_name,
         data_source_method,

@@ -1,6 +1,6 @@
 """
-市场概览工具，用于MCP服务器
-包含获取交易日和所有股票数据的工具
+Market overview tools for the MCP server.
+Includes tools to fetch trading days and all stock data.
 """
 import logging
 from typing import Optional
@@ -13,29 +13,28 @@ logger = logging.getLogger(__name__)
 
 
 def safe_market_data_fetch(
-    func_name: str,
-    data_source_func,
-    data_type: str,
-    **kwargs
+        func_name: str,
+        data_source_func,
+        data_type: str,
+        **kwargs
 ) -> str:
     """
-    安全的市场数据获取函数，统一处理所有异常和错误情况
-    
-    参数:
-        func_name: 函数名称，用于日志记录
-        data_source_func: 数据源函数
-        data_type: 数据类型描述
-        **kwargs: 传递给数据源函数的关键字参数
-        
-    返回:
-        Markdown格式的数据表格或错误消息
+    Safe market data fetch function that handles all exceptions and errors consistently.
+
+    Args:
+        func_name: Name of the function (for logging purposes).
+        data_source_func: Data source function to call.
+        data_type: Description of the data type.
+        **kwargs: Keyword arguments to pass to the data source function.
+
+    Returns:
+        Markdown table of the data or an error message.
     """
     try:
-        # 调用数据源函数
         df = data_source_func(**kwargs)
         logger.info(f"Successfully retrieved {data_type} data.")
         return format_df_to_markdown(df)
-        
+
     except NoDataFoundError as e:
         logger.warning(f"NoDataFoundError: {e}")
         return f"Error: {e}"
@@ -55,32 +54,32 @@ def safe_market_data_fetch(
 
 def register_market_overview_tools(app: FastMCP, active_data_source: FinancialDataSource):
     """
-    向MCP应用注册市场概览工具
+    Register market overview tools to the MCP application.
 
-    参数:
-        app: FastMCP应用实例
-        active_data_source: 活跃的金融数据源
+    Args:
+        app: FastMCP application instance.
+        active_data_source: Active financial data source.
     """
 
     @app.tool()
     def get_trade_dates(start_date: Optional[str] = None, end_date: Optional[str] = None) -> str:
         """
-        获取指定范围内的交易日信息
+        Fetch trading day information for a specified range.
 
-        参数:
-            start_date: 可选的开始日期，格式为'YYYY-MM-DD'。如果为None，默认为2015-01-01
-            end_date: 可选的结束日期，格式为'YYYY-MM-DD'。如果为None，默认为当前日期
+        Args:
+            start_date: Optional start date in 'YYYY-MM-DD' format. Defaults to '2015-01-01' if None.
+            end_date: Optional end date in 'YYYY-MM-DD' format. Defaults to today if None.
 
-        返回:
-            指示范围内每个日期是否为交易日（1）或非交易日（0）的Markdown表格
+        Returns:
+            Markdown table indicating whether each date is a trading day (1) or not (0).
         """
         logger.info(
             f"Tool 'get_trade_dates' called for range {start_date or 'default'} to {end_date or 'default'}")
-        
+
         return safe_market_data_fetch(
             "get_trade_dates",
             active_data_source.get_trade_dates,
-            "交易日",
+            "Trading Days",
             start_date=start_date,
             end_date=end_date
         )
@@ -88,21 +87,20 @@ def register_market_overview_tools(app: FastMCP, active_data_source: FinancialDa
     @app.tool()
     def get_all_stock(date: Optional[str] = None) -> str:
         """
-        获取指定日期的所有股票（A股和指数）列表及其交易状态
+        Fetch the list of all stocks (A-shares and indices) and their trading status for a specified date.
 
-        参数:
-            date: 可选的日期，格式为'YYYY-MM-DD'。如果为None，则使用当前日期
+        Args:
+            date: Optional date in 'YYYY-MM-DD' format. Defaults to today if None.
 
-        返回:
-            列出股票代码、名称及其交易状态（1=交易中，0=停牌）的Markdown表格
+        Returns:
+            Markdown table listing stock codes, names, and trading status (1=trading, 0=suspended).
         """
         logger.info(
             f"Tool 'get_all_stock' called for date={date or 'default'}")
-        
+
         return safe_market_data_fetch(
             "get_all_stock",
             active_data_source.get_all_stock,
-            "所有股票",
+            "All Stocks",
             date=date
         )
-
