@@ -97,9 +97,9 @@ def test_sentiment_model():
     
     print("\n=== 情感分析模型测试结果 ===")
     for i, (text, symbol) in enumerate(test_cases, 1):
-        print(f"\n测试 {i}:")
-        print(f"新闻: {text}")
-        print(f"股票: {symbol}")
+        print(f"\ntest {i}:")
+        print(f"news: {text}")
+        print(f"stock: {symbol}")
         
         predicted_sentiment = predict_sentiment(model, tokenizer, text, symbol)
         
@@ -110,7 +110,7 @@ def test_sentiment_model():
             print("预测情感: 解析失败")
     
     # 使用真实数据测试
-    print("\n=== 真实数据测试 ===")
+    print("\n=== real data test ===")
     try:
         df = pd.read_csv("nasdaq_news_sentiment/1.csv", nrows=10)
         df = df[df['Lsa_summary'].notna() & df['sentiment_deepseek'].notna()]
