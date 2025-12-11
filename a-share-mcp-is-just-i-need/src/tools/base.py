@@ -12,6 +12,20 @@ from src.data_source_interface import NoDataFoundError, LoginError, DataSourceEr
 logger = logging.getLogger(__name__)
 
 
+def _format_or_error(df: pd.DataFrame, data_type_name: str) -> str:
+    """
+    对返回的 DataFrame 进行空值检测：
+    - 若为空/None，返回明确的错误字符串，避免 LLM 继续“脑补”。
+    - 若非空，正常格式化为 Markdown。
+    """
+    if df is None or (isinstance(df, pd.DataFrame) and df.empty):
+        msg = f"ERROR: {data_type_name} data unavailable (empty result)."
+        logger.warning(msg)
+        return msg
+
+    return format_df_to_markdown(df)
+
+
 def safe_data_source_call(
     tool_name: str,
     data_source_method: Callable,
@@ -34,7 +48,7 @@ def safe_data_source_call(
         # 调用数据源方法
         df = data_source_method(**kwargs)
         logger.info(f"Successfully retrieved {data_type_name} data.")
-        return format_df_to_markdown(df)
+        return _format_or_error(df, data_type_name)
         
     except NoDataFoundError as e:
         logger.warning(f"NoDataFoundError: {e}")
@@ -90,8 +104,7 @@ def call_financial_data_tool(
         df = data_source_method(code=code, year=year, quarter=quarter)
         logger.info(
             f"Successfully retrieved {data_type_name} data for {code}, {year}Q{quarter}.")
-        # 对财务表格使用较小的限制？
-        return format_df_to_markdown(df)
+        return _format_or_error(df, data_type_name)
 
     except NoDataFoundError as e:
         logger.warning(f"NoDataFoundError for {code}, {year}Q{quarter}: {e}")

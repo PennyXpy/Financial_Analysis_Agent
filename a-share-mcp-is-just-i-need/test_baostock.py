@@ -51,7 +51,7 @@ class CompleteBaostockDataSourceTester:
         try:
             result = test_func(*args, **kwargs)
             print(f"✅ {func_name} 测试成功！")
-            print(f"   数据条数：{len(result)}")
+            print(f"   数据条数：{len(result)}")run
             print(f"   数据列：{list(result.columns)}")
             
             if len(result) > 0:

@@ -478,7 +478,7 @@ class BaostockDataSource(FinancialDataSource):
             from peft import PeftModel
             import torch
             
-            risk_model_path = "/content/Financial_Analysis_Agent/qwen_risk_model"
+            risk_model_path = "/Users/penny_xpy/Desktop/Financial_Analysis_Agent/qwen_risk_model"
             base_model_name = "Qwen/Qwen2.5-7B-Instruct"
             
             # 检查CUDA可用性
@@ -517,7 +517,7 @@ class BaostockDataSource(FinancialDataSource):
             from peft import PeftModel
             import torch
             
-            sentiment_model_path = "/content/Financial_Analysis_Agent/qwen_sentiment_model"
+            sentiment_model_path = "/Users/penny_xpy/Desktop/Financial_Analysis_Agent/qwen_sentiment_model"
             base_model_name = "Qwen/Qwen2.5-7B-Instruct"
             
             # 检查CUDA可用性

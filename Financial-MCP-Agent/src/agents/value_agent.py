@@ -109,6 +109,20 @@ async def value_agent(state: AgentState) -> AgentState:
 
                 return {"data": current_data, "messages": current_messages, "metadata": current_metadata}
 
+            # If US stock, drop A-share-only tools to avoid Baostock calls
+            if current_data.get("market") == "US":
+                allowed_tools = {
+                    "get_stock_basic_info", "get_historical_k_data", "get_dividend_data",
+                    "get_adjust_factor_data", "get_profit_data", "get_operation_data",
+                    "get_growth_data", "get_balance_data", "get_cash_flow_data",
+                    "get_dupont_data", "get_performance_express_report",
+                    "get_forecast_report", "get_stock_industry", "get_stock_analysis",
+                    "crawl_news", "get_market_analysis_timeframe", "get_latest_trading_date"
+                }
+                before = len(mcp_tools)
+                mcp_tools = [t for t in mcp_tools if t.name in allowed_tools]
+                logger.info(f"Filtered tools for US market: {before} -> {len(mcp_tools)}")
+
             logger.info(
                 f"{SUCCESS_ICON} ValueAgent: Successfully loaded {len(mcp_tools)} tools.")
 
@@ -125,12 +139,16 @@ async def value_agent(state: AgentState) -> AgentState:
             company_name = current_data.get('company_name', 'Unknown')
             current_time_info = current_data.get('current_time_info', '未知时间')
             current_date = current_data.get('current_date', '未知日期')
+            us_range_hint = ""
+            if current_data.get("market") == "US":
+                us_range_hint = "\nNote: For US stocks, please limit the historical price window to the last 14 days to reduce rate limits.\n"
 
             # 构建详细的估值分析请求，包含多个分析维度
             agent_input = f"""请分析{company_name}（股票代码：{stock_code}）的估值情况。
 
 当前时间：{current_time_info}
 当前日期：{current_date}
+{us_range_hint}
 
 请进行以下估值分析：
 1. 获取公司基本信息（市值、股价等）
@@ -141,9 +159,11 @@ async def value_agent(state: AgentState) -> AgentState:
 6. 计算和分析内在价值
 7. 提供估值总结和投资建议
 
-重要限制：请专注于估值指标和财务数据分析，不要使用crawl_news工具获取新闻信息。估值分析应该基于财务指标、估值比率和历史数据，而不是新闻事件。
-
-请使用可用的工具获取实际数据进行分析，而不是基于假设。如果某些数据无法获取，请尝试使用不同的工具或参数组合，基于可用信息提供尽可能全面的分析。请保持回答简洁，避免冗长的描述性文字"""
+重要限制：
+- 请专注于估值指标和财务数据分析，不要使用crawl_news工具获取新闻信息。估值分析应该基于财务指标、估值比率和历史数据，而不是新闻事件。
+- 避免重复请求同一ticker的相同数据（基础信息、K线、财报），如已获取请复用结果，减少API调用。
+- 如果无法获取指定股票（{stock_code}）的数据，请报告失败原因，不要自动切换到其他股票代码。
+- 请使用可用的工具获取实际数据进行分析，而不是基于假设。如果某些数据无法获取，请尝试使用不同的工具或参数组合，基于可用信息提供尽可能全面的分析。请保持回答简洁，避免冗长的描述性文字"""
 
             logger.info(f"Agent input: {agent_input}")
 
@@ -199,7 +219,36 @@ async def value_agent(state: AgentState) -> AgentState:
             logger.info(
                 f"Final extracted analysis length: {len(final_output)} characters")
             print(f"VALUEAGENT: {final_output}")
-            # 7. 记录LLM交互，用于后续分析和优化
+            
+            # 7. 错误检测 - 检查是否出现致命错误
+            error_keywords = [
+                "用户未登录", "10001001", "429", "Too Many Requests",
+                "No data found", "symbol may be delisted", "错误的股票代码", "无法获取数据",
+                "ERROR:"  # 工具返回的标准错误前缀
+            ]
+            has_fatal_error = any(keyword in final_output for keyword in error_keywords)
+            
+            # 检查市场不匹配
+            if current_data.get("market") == "US":
+                a_share_keywords = ["sh.", "sz.", "深证", "上证", "A股"]
+                if any(keyword in final_output for keyword in a_share_keywords):
+                    logger.error(f"{ERROR_ICON} CRITICAL: US stock analysis used A-share data!")
+                    has_fatal_error = True
+                    final_output += "\n\n⚠️ 错误：检测到使用了A股数据分析美股。"
+            
+            if has_fatal_error:
+                logger.error(f"{ERROR_ICON} FATAL ERROR detected in value analysis.")
+                current_data["value_analysis_error"] = "Fatal error detected"
+                current_data["value_analysis"] = f"⚠️ 估值分析失败\n\n{final_output}"
+                execution_logger.log_agent_complete(
+                    agent_name, current_data, time.time() - agent_start_time, False, "Fatal error detected")
+                return {
+                    "data": current_data,
+                    "messages": current_messages,
+                    "metadata": current_metadata
+                }
+            
+            # 8. 记录LLM交互，用于后续分析和优化
             model_config = {
                 "model": model_name,
                 "temperature": 0.3,

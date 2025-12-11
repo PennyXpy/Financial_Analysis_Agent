@@ -45,19 +45,30 @@ def safe_login(retries: int = 3, delay: int = 2):
         raise LoginError("❌ Baostock login failed after multiple retries.")
 
 def safe_logout():
-    """安全登出（有锁，忽略非致命错误）"""
+    """安全登出（有锁，忽略非致命错误）- 仅在需要时调用"""
+    global _baostock_logged_in
     with _baostock_lock:
+        if not _baostock_logged_in:
+            logger.debug("⏭️ Baostock not logged in, skipping logout")
+            return
         try:
             bs.logout()
+            _baostock_logged_in = False
             logger.info("✅ Baostock logout successful (safe mode)")
         except Exception as e:
             logger.warning(f"⚠️ Baostock logout error ignored: {e}")
+            _baostock_logged_in = False
 
 
 # --- Baostock上下文管理器 ---
 @contextmanager
 def baostock_login_context():
-    """上下文管理器：抑制stdout + 安全登录/登出（带锁+重试）"""
+    """
+    上下文管理器：抑制stdout + 安全登录（带锁+重试）
+    
+    重要变更：采用持久连接模式，不再在每次调用后登出。
+    这大幅减少登录/登出次数，避免"用户未登录"错误。
+    """
 
     # --- 抑制登录期 stdout ---
     original_stdout_fd = sys.stdout.fileno()
@@ -68,33 +79,20 @@ def baostock_login_context():
 
     # 登录（安全版，失败会抛出 LoginError）
     try:
-        safe_login()
+        safe_login()  # 现在会检查是否已登录，避免重复登录
     finally:
         # 一定要恢复 stdout（即使登录报错也要恢复）
         os.dup2(saved_stdout_fd, original_stdout_fd)
         os.close(saved_stdout_fd)
 
-    logger.info("Baostock login successful.")
+    logger.debug("Baostock session ready (persistent connection).")
     try:
         # ---- 这里执行你的 API 调用 ----
         yield
     finally:
-        # --- 抑制登出期 stdout ---
-        original_stdout_fd = sys.stdout.fileno()
-        saved_stdout_fd = os.dup(original_stdout_fd)
-        devnull_fd = os.open(os.devnull, os.O_WRONLY)
-        os.dup2(devnull_fd, original_stdout_fd)
-        os.close(devnull_fd)
-
-        # 登出（安全版）
-        try:
-            safe_logout()
-        finally:
-            # 恢复 stdout
-            os.dup2(saved_stdout_fd, original_stdout_fd)
-            os.close(saved_stdout_fd)
-
-        logger.info("Baostock logout successful.")
+        # 不再自动登出 - 保持持久连接
+        # 会话将在超时后自动重新登录
+        logger.debug("Baostock API call completed (keeping session alive).")
 
 
 # --- 通用数据获取函数 ---

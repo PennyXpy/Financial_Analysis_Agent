@@ -8,6 +8,14 @@ logger = setup_logger(__name__)
 
 _mcp_client_instance = None
 _mcp_tools = None
+_mcp_init_lock = None  # 全局锁防止并发初始化（懒加载）
+
+def _get_or_create_lock():
+    """获取或创建 asyncio Lock（懒加载，避免模块加载时创建）"""
+    global _mcp_init_lock
+    if _mcp_init_lock is None:
+        _mcp_init_lock = asyncio.Lock()
+    return _mcp_init_lock
 
 
 def print_tool_details(tools):
@@ -33,6 +41,9 @@ async def get_mcp_tools():
     """
     使用定义的服务器配置初始化MultiServerMCPClient，
     并从a-share-mcp-v2服务器获取可用工具。
+    
+    采用单例模式 + 异步锁：确保只初始化一次，即使多个协程并发调用。
+    这避免了多次启动 MCP server 进程导致的竞态条件问题。
 
     返回:
         list: 从MCP服务器加载的LangChain兼容工具列表。
@@ -40,44 +51,53 @@ async def get_mcp_tools():
     """
     global _mcp_client_instance, _mcp_tools
 
+    # Fast path: 如果已经初始化，直接返回（无需加锁）
     if _mcp_tools is not None:
-        logger.info(f"{SUCCESS_ICON} Returning cached MCP tools.")
+        logger.info(f"{SUCCESS_ICON} ♻️ Returning cached MCP tools ({len(_mcp_tools)} tools).")
         return _mcp_tools
 
-    logger.info(
-        f"{WAIT_ICON} Initializing MultiServerMCPClient with config: {SERVER_CONFIGS}")
-    try:
-        _mcp_client_instance = MultiServerMCPClient(SERVER_CONFIGS)
-
+    # Slow path: 需要初始化，使用锁防止并发
+    lock = _get_or_create_lock()
+    async with lock:
+        # Double-check: 在获取锁后再次检查，可能已被其他协程初始化
+        if _mcp_tools is not None:
+            logger.info(f"{SUCCESS_ICON} ♻️ Another coroutine initialized MCP tools, returning cached result ({len(_mcp_tools)} tools).")
+            return _mcp_tools
+        
         logger.info(
-            f"{WAIT_ICON} Fetching tools from MCP server 'a_share_mcp_v2'...")
-        # The get_tools() method is asynchronous.
-        loaded_tools = await _mcp_client_instance.get_tools()
+            f"{WAIT_ICON} 🔧 Initializing MultiServerMCPClient (first time, holding lock) with config: {SERVER_CONFIGS}")
+        try:
+            _mcp_client_instance = MultiServerMCPClient(SERVER_CONFIGS)
 
-        if not loaded_tools:
-            logger.warning(
-                f"{ERROR_ICON} No tools loaded from MCP server 'a_share_mcp_v2'. Check server logs and configuration.")
-            _mcp_tools = []  # Cache empty list on failure to load
+            logger.info(
+                f"{WAIT_ICON} 📡 Fetching tools from MCP server 'a_share_mcp_v2'...")
+            # The get_tools() method is asynchronous.
+            loaded_tools = await _mcp_client_instance.get_tools()
+
+            if not loaded_tools:
+                logger.warning(
+                    f"{ERROR_ICON} No tools loaded from MCP server 'a_share_mcp_v2'. Check server logs and configuration.")
+                _mcp_tools = []  # Cache empty list on failure to load
+                return []
+
+            _mcp_tools = loaded_tools
+            logger.info(
+                f"{SUCCESS_ICON} ✅ Successfully loaded {len(_mcp_tools)} tools from 'a_share_mcp_v2'. These will be cached for reuse.")
+
+            # # 打印工具名称列表
+            # tool_names = [tool.name for tool in _mcp_tools]
+            # logger.info(f"工具名称列表: {tool_names}")
+
+            # 打印详细的工具信息
+            # print_tool_details(_mcp_tools)
+
+            return _mcp_tools
+
+        except Exception as e:
+            logger.error(
+                f"{ERROR_ICON} ❌ Failed to initialize MCP client or load tools: {e}", exc_info=True)
+            _mcp_tools = []  # Cache empty list on failure
             return []
-
-        _mcp_tools = loaded_tools
-        logger.info(
-            f"{SUCCESS_ICON} Successfully loaded {len(_mcp_tools)} tools from 'a_share_mcp_v2'.")
-
-        # # 打印工具名称列表
-        # tool_names = [tool.name for tool in _mcp_tools]
-        # logger.info(f"工具名称列表: {tool_names}")
-
-        # 打印详细的工具信息
-        # print_tool_details(_mcp_tools)
-
-        return _mcp_tools
-
-    except Exception as e:
-        logger.error(
-            f"{ERROR_ICON} Failed to initialize MCP client or load tools: {e}", exc_info=True)
-        _mcp_tools = []  # Cache empty list on failure
-        return []
 
 
 async def close_mcp_client_sessions():

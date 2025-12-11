@@ -7,6 +7,7 @@ from mcp.server.fastmcp import FastMCP
 # Import the interface and the concrete implementation
 from src.data_source_interface import FinancialDataSource
 from src.baostock_data_source import BaostockDataSource
+from src.multi_data_source import MultiDataSource
 from src.utils import setup_logging
 
 # 导入各模块工具的注册函数
@@ -26,8 +27,10 @@ setup_logging(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # --- Dependency Injection ---
-# Instantiate the data source - easy to swap later if needed
-active_data_source: FinancialDataSource = BaostockDataSource()
+# Use MultiDataSource singleton to support both A-share (Baostock) and US stocks (Yahoo Finance)
+# The singleton pattern ensures only one instance exists across all server starts
+active_data_source: FinancialDataSource = MultiDataSource()
+logger.info("✅ MCP Server: Using MultiDataSource singleton - supports A-share stocks (Baostock) and US stocks (Yahoo Finance)")
 
 # --- Get current date for system prompt ---
 current_date = datetime.now().strftime("%Y-%m-%d")

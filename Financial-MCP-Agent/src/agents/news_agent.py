@@ -109,6 +109,19 @@ async def news_agent(state: AgentState) -> AgentState:
 
                 return {"data": current_data, "messages": current_messages, "metadata": current_metadata}
 
+            # If US stock, drop A-share-only tools to avoid Baostock calls
+            if current_data.get("market") == "US":
+                allowed_tools = {
+                    "crawl_news", "get_stock_basic_info", "get_stock_analysis",
+                    "get_historical_k_data", "get_dividend_data", "get_adjust_factor_data",
+                    "get_profit_data", "get_operation_data", "get_growth_data",
+                    "get_balance_data", "get_cash_flow_data", "get_dupont_data",
+                    "get_market_analysis_timeframe", "get_latest_trading_date"
+                }
+                before = len(mcp_tools)
+                mcp_tools = [t for t in mcp_tools if t.name in allowed_tools]
+                logger.info(f"Filtered tools for US market: {before} -> {len(mcp_tools)}")
+
             logger.info(
                 f"{SUCCESS_ICON} NewsAgent: Successfully loaded {len(mcp_tools)} tools.")
 
@@ -126,12 +139,16 @@ async def news_agent(state: AgentState) -> AgentState:
             company_name = current_data.get('company_name', 'Unknown')
             current_time_info = current_data.get('current_time_info', '未知时间')
             current_date = current_data.get('current_date', '未知日期')
+            us_range_hint = ""
+            if current_data.get("market") == "US":
+                us_range_hint = "\nNote: For US stocks, please limit the historical price window to the last 14 days to reduce rate limits.\n"
 
             # 构建详细的新闻分析请求，包含多个分析维度
             agent_input = f"""请对{company_name}（股票代码：{stock_code}）进行新闻分析。
 
 当前时间：{current_time_info}
 当前日期：{current_date}
+{us_range_hint}
 
 请进行以下新闻分析：
 1. 爬取与{company_name}相关的最新新闻（至少5条）
@@ -141,7 +158,9 @@ async def news_agent(state: AgentState) -> AgentState:
 5. 识别关键新闻事件和趋势
 6. 提供基于新闻的综合投资建议
 
-请使用可用的工具获取实际新闻数据进行分析，确保情感分析和风险评估的准确性。如果某些新闻无法获取，请基于可用信息提供尽可能全面的分析。"""
+重要限制：
+- 避免重复请求同一ticker的相同数据，如已获取请复用结果，减少API调用。
+- 请使用可用的工具获取实际新闻数据进行分析，确保情感分析和风险评估的准确性。如果某些新闻无法获取，请基于可用信息提供尽可能全面的分析。"""
 
             logger.info(f"Agent input: {agent_input}")
 
@@ -194,7 +213,36 @@ async def news_agent(state: AgentState) -> AgentState:
             logger.info(
                 f"Final extracted analysis length: {len(final_output)} characters")
             print(f"NEWSAGENT: {final_output}")
-            # 7. 记录LLM交互，用于后续分析和优化
+            
+            # 7. 错误检测 - 检查是否出现致命错误
+            error_keywords = [
+                "用户未登录", "10001001", "429", "Too Many Requests",
+                "No data found", "symbol may be delisted", "错误的股票代码", "无法获取数据",
+                "ERROR:"  # 工具返回的标准错误前缀
+            ]
+            has_fatal_error = any(keyword in final_output for keyword in error_keywords)
+            
+            # 检查市场不匹配
+            if current_data.get("market") == "US":
+                a_share_keywords = ["sh.", "sz.", "深证", "上证", "A股"]
+                if any(keyword in final_output for keyword in a_share_keywords):
+                    logger.error(f"{ERROR_ICON} CRITICAL: US stock analysis used A-share data!")
+                    has_fatal_error = True
+                    final_output += "\n\n⚠️ 错误：检测到使用了A股数据分析美股。"
+            
+            if has_fatal_error:
+                logger.error(f"{ERROR_ICON} FATAL ERROR detected in news analysis.")
+                current_data["news_analysis_error"] = "Fatal error detected"
+                current_data["news_analysis"] = f"⚠️ 新闻分析失败\n\n{final_output}"
+                execution_logger.log_agent_complete(
+                    agent_name, current_data, time.time() - agent_start_time, False, "Fatal error detected")
+                return {
+                    "data": current_data,
+                    "messages": current_messages,
+                    "metadata": current_metadata
+                }
+            
+            # 8. 记录LLM交互，用于后续分析和优化
             model_config = {
                 "model": model_name,
                 "temperature": 0.3,

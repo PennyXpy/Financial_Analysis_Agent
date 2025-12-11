@@ -101,7 +101,27 @@ async def main():
     # 初始化执行日志系统
     execution_logger = initialize_execution_logger()
     logger.info(
-        f"{SUCCESS_ICON} 执行日志系统已初始化，日志目录: {execution_logger.execution_dir}")
+        f"{SUCCESS_ICON} Execution logger initialized, log directory: {execution_logger.execution_dir}")
+
+    # ============================================================================
+    # 🔧 全局初始化 MCP Client（生命周期管理）
+    # ============================================================================
+    logger.info(f"{WAIT_ICON} Pre-initializing MCP Client (global singleton)...")
+    from src.tools.mcp_client import get_mcp_tools
+    
+    try:
+        # 在主流程开始前初始化 MCP tools
+        # 这确保只有一个 MCP server 进程，由主流程控制生命周期
+        global_mcp_tools = await get_mcp_tools()
+        if not global_mcp_tools:
+            logger.error(f"{ERROR_ICON} Failed to initialize MCP tools. System cannot proceed.")
+            print(f"\n{ERROR_ICON} Failed to initialize MCP tools. Please check MCP server configuration.")
+            return
+        logger.info(f"{SUCCESS_ICON} MCP Client initialized successfully with {len(global_mcp_tools)} tools.")
+    except Exception as e:
+        logger.error(f"{ERROR_ICON} Failed to initialize MCP Client: {e}", exc_info=True)
+        print(f"\n{ERROR_ICON} Failed to initialize MCP Client: {e}")
+        return
 
     try:
         # ============================================================================
@@ -124,17 +144,12 @@ async def main():
         # 设置工作流入口点
         workflow.set_entry_point("start_node")
 
-        # 添加并行执行边 - 四个分析智能体并行执行
+        # ⚠️ 改为串行执行 - 避免并发导致的 MCP server 冲突
+        # 执行顺序：start → fundamental → technical → value → news → summarizer
         workflow.add_edge("start_node", "fundamental_analyst")
-        workflow.add_edge("start_node", "technical_analyst")
-        workflow.add_edge("start_node", "value_analyst")
-        workflow.add_edge("start_node", "news_analyst")
-
-        # 添加汇聚边 - 所有分析结果汇聚到总结智能体
-        # LangGraph确保"summarizer"等待所有直接前驱节点完成
-        workflow.add_edge("fundamental_analyst", "summarizer")
-        workflow.add_edge("technical_analyst", "summarizer")
-        workflow.add_edge("value_analyst", "summarizer")
+        workflow.add_edge("fundamental_analyst", "technical_analyst")
+        workflow.add_edge("technical_analyst", "value_analyst")
+        workflow.add_edge("value_analyst", "news_analyst")
         workflow.add_edge("news_analyst", "summarizer")
 
         # 添加结束边 - 总结智能体完成后结束工作流
@@ -196,43 +211,43 @@ async def main():
                 "║               ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═══╝   ╚═╝                     ║")
             print(
                 "║                                                                              ║")
-            print("║                          🏦 金融分析智能体系统                              ║")
+            print("║                          🏦 Financial Analysis Agent System                  ║")
             print(
                 "║                     Financial Analysis AI Agent System                      ║")
             print(
                 "║                                                                              ║")
             print(
                 "║    ┌─────────────────────────────────────────────────────────────────┐     ║")
-            print("║    │  📊 基本面分析  │  📈 技术分析  │  💰 估值分析  │  📰 新闻分析  │  🤖 智能总结  │    ║")
+            print("║    │  📊 Fundamental  │  📈 Technical  │  💰 Valuation  │  📰 News  │  🤖 Summary  │    ║")
             print(
                 "║    └─────────────────────────────────────────────────────────────────┘     ║")
             print(
                 "║                                                                              ║")
             print(
                 "╚══════════════════════════════════════════════════════════════════════════════╝")
-            print("\n🔹 本系统可以对A股公司进行全面分析，包括：")
-            print("  • 基本面分析 - 财务状况、盈利能力和行业地位")
-            print("  • 技术面分析 - 价格趋势、交易量和技术指标")
-            print("  • 估值分析 - 市盈率、市净率等估值水平")
-            print("  • 新闻分析 - 新闻情感分析和风险评估")
-            print("\n🔹 支持多种自然语言查询方式：")
+            print("\n🔹 This system can analyze A-share companies, including:")
+            print("  • Fundamental Analysis - Financial status, profitability, and industry position")
+            print("  • Technical Analysis - Price trends, trading volume, and technical indicators")
+            print("  • Valuation Analysis - P/E ratio, P/B ratio, and other valuation metrics")
+            print("  • News Analysis - News sentiment analysis and risk assessment")
+            print("\n🔹 Supports multiple natural language query formats:")
             print("  • 分析嘉友国际")
             print("  • 帮我看看比亚迪这只股票怎么样")
-            print("  • 我想了解一下腾讯的投资价值")
+            print("  • Analyze Apple (AAPL)")
+            print("  • Please analyze Tesla stock")
             print("  • 603871 这个股票值得买吗？")
-            print("  • 给我分析一下宁德时代的财务状况")
-            print("\n🔹 您可以用任何自然语言描述您的分析需求")
-            print("🔹 系统会自动识别股票名称和代码，并进行全面分析")
-            print("\n💡 提示：建议使用股票代码（如 000001、600036）以获得更准确的分析结果")
+            print("\n🔹 You can use any natural language to describe your analysis needs")
+            print("🔹 The system will automatically identify stock names and codes, and perform comprehensive analysis")
+            print("\n💡 Tip: Using stock codes (e.g., 000001, 600036) will provide more accurate results")
             print("\n" + "─" * 78 + "\n")
 
             # 获取用户输入
-            user_query = input("💬 请输入您的分析需求: ")
+            user_query = input("💬 Please enter your analysis request: ")
 
             # 确保输入不为空
             while not user_query.strip():
-                print(f"{ERROR_ICON} 输入不能为空，请重新输入！")
-                user_query = input("请输入您的分析需求: ")
+                print(f"{ERROR_ICON} Input cannot be empty, please try again!")
+                user_query = input("Please enter your analysis request: ")
 
         # 记录用户查询到执行日志
         execution_logger.log_agent_start("main", {"user_query": user_query})
@@ -246,8 +261,10 @@ async def main():
         company_name = None
 
         # 定义更精确的提取模式
+        # Note: re module is imported at the top of the file
         def extract_stock_info(query):
             """精确提取股票代码和公司名称"""
+            import re  # Import re inside the function to ensure it's available
             stock_code = None
             company_name = None
             
@@ -387,12 +404,160 @@ async def main():
             if match20 and not stock_code:
                 stock_code = match20.group(1)
             
+            # ========== English Patterns ==========
+            # Pattern 21: "Analyze Apple (AAPL)" or "Analyze Apple(AAPL)"
+            pattern21 = r'(?:analyze|analysis|please\s+analyze)\s+([A-Za-z\s]+?)\s*[\(（](\d{5,6}|[A-Z]{1,5})[\)）]'
+            match21 = re.search(pattern21, query, re.IGNORECASE)
+            if match21:
+                company_name = match21.group(1).strip()
+                stock_code = match21.group(2)
+                return company_name, stock_code
+            
+            # Pattern 22: "Please analyze Tesla stock" or "Analyze Tesla"
+            # Require ticker only when clearly indicated (e.g., inside parentheses) to avoid
+            # misinterpreting company name substrings (e.g., "Nvidia" → "VIDIA").
+            pattern22 = r'(?:please\s+)?(?:analyze|analysis|check|look\s+at)\s+([A-Za-z\s]+?)(?:\s+stock|\s+company|\s+inc\.?|\s+corp\.?)?(?:\s*[\(（](\d{5,6}|[A-Z]{1,5})[\)）])?'
+            match22 = re.search(pattern22, query, re.IGNORECASE)
+            if match22 and not company_name:
+                company_name = match22.group(1).strip()
+                if match22.group(2):
+                    stock_code = match22.group(2)
+            
+            # Pattern 23: "What about Apple (AAPL)?" or "Tell me about Tesla"
+            pattern23 = r'(?:what\s+about|tell\s+me\s+about|show\s+me|info\s+on)\s+([A-Za-z\s]+?)\s*[\(（]?(\d{5,6}|[A-Z]{1,5})?[\)）]?'
+            match23 = re.search(pattern23, query, re.IGNORECASE)
+            if match23 and not company_name:
+                company_name = match23.group(1).strip()
+                if match23.group(2):
+                    stock_code = match23.group(2)
+            
+            # Pattern 24: "Is Apple (AAPL) worth investing?" or "Should I buy Tesla?"
+            pattern24 = r'([A-Za-z\s]+?)\s*[\(（]?(\d{5,6}|[A-Z]{1,5})?[\)）]?\s*(?:worth|should|good|invest|buy)'
+            match24 = re.search(pattern24, query, re.IGNORECASE)
+            if match24 and not company_name:
+                company_name = match24.group(1).strip()
+                if match24.group(2):
+                    stock_code = match24.group(2)
+            
+            # Pattern 25: Direct format "CompanyName (CODE)" or "CODE CompanyName"
+            pattern25 = r'([A-Za-z][A-Za-z\s]+?)\s*[\(（](\d{5,6}|[A-Z]{1,5})[\)）]'
+            match25 = re.search(pattern25, query)
+            if match25 and not company_name:
+                company_name = match25.group(1).strip()
+                stock_code = match25.group(2)
+            
+            # Pattern 26: Stock code first "AAPL Apple" or "600519 茅台"
+            pattern26 = r'(\d{5,6}|[A-Z]{1,5})\s+([A-Za-z\u4e00-\u9fff]+)'
+            match26 = re.search(pattern26, query)
+            if match26 and not stock_code:
+                stock_code = match26.group(1)
+                if not company_name:
+                    company_name = match26.group(2).strip()
+            
+            # Pattern 27: "Stock code: 600519" or "Code: AAPL"
+            pattern27 = r'(?:stock\s+code|code|symbol)[\s:]+(\d{5,6}|[A-Z]{1,5})'
+            match27 = re.search(pattern27, query, re.IGNORECASE)
+            if match27 and not stock_code:
+                stock_code = match27.group(1)
+            
+            # Pattern 28: English company name only (without code)
+            if not company_name:
+                # Match English company names (capitalized words or lowercase after analyze/analysis)
+                # First try capitalized words
+                pattern28a = r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b'
+                matches28a = re.findall(pattern28a, query)
+                # Filter out common English words
+                english_stop_words = ['Please', 'Analyze', 'Analysis', 'Check', 'Look', 'Tell', 'Show', 'What', 'About', 'Stock', 'Company', 'Invest', 'Buy', 'Worth', 'Should', 'Good']
+                for match in matches28a:
+                    if match not in english_stop_words and len(match) > 2:
+                        company_name = match
+                        break
+                
+                # If no capitalized word found, try lowercase words after analyze/analysis
+                if not company_name:
+                    pattern28b = r'(?:analyze|analysis|please\s+analyze)\s+([a-z]+)'
+                    match28b = re.search(pattern28b, query, re.IGNORECASE)
+                    if match28b:
+                        potential_name = match28b.group(1).strip()
+                        if potential_name.lower() not in [w.lower() for w in english_stop_words] and len(potential_name) > 2:
+                            company_name = potential_name.capitalize()  # Capitalize first letter
+            
+            # Known name aliases (used for direct hit, fuzzy, and smart lookup)
+            well_known = {
+                'apple': 'AAPL', 'microsoft': 'MSFT', 'google': 'GOOGL',
+                'amazon': 'AMZN', 'tesla': 'TSLA', 'meta': 'META',
+                'facebook': 'META', 'nvidia': 'NVDA', 'netflix': 'NFLX',
+                'nvda': 'NVDA', 'vidia': 'NVDA'  # defensive aliases
+            }
+
+            # If nothing extracted yet, try direct substring hit against well-known names in the query
+            if not stock_code:
+                query_lower = query.lower()
+                for alias, code in well_known.items():
+                    if re.search(rf'\b{re.escape(alias)}\b', query_lower):
+                        stock_code = code
+                        if not company_name:
+                            company_name = alias.title()
+                        break
+
+            # Smart ticker lookup: Try to find stock code from company name using yfinance
+            if company_name and not stock_code:
+                try:
+                    import yfinance as yf
+                    from difflib import get_close_matches
+                    company_clean = company_name.strip()
+                    company_lower = company_clean.lower()
+                    
+                    # Generate potential tickers using simple patterns
+                    potential_tickers = []
+                    
+                    # Pattern 1: First word uppercase (e.g., "Apple" -> "APPLE")
+                    first_word = company_clean.split()[0].upper()
+                    if 1 <= len(first_word) <= 5:
+                        potential_tickers.append(first_word)
+                    
+                    # Pattern 2: Try well-known mappings (minimal set for common cases)
+                    if company_lower in well_known:
+                        potential_tickers.insert(0, well_known[company_lower])  # Try known mappings first
+                    else:
+                        # Fuzzy match against known aliases to fix common typos (e.g., "nvida" -> NVDA)
+                        close = get_close_matches(company_lower, list(well_known.keys()), n=1, cutoff=0.82)
+                        if close:
+                            potential_tickers.insert(0, well_known[close[0]])
+                    
+                    # Try each potential ticker with yfinance
+                    for ticker_candidate in potential_tickers:
+                        try:
+                            test_ticker = yf.Ticker(ticker_candidate)
+                            info = test_ticker.info
+                            # Verify it's a valid ticker and matches the company
+                            if info and info.get('longName'):
+                                ticker_name = info.get('longName', '').lower()
+                                # Fuzzy match: check if company name words appear in ticker name
+                                if (company_lower in ticker_name or 
+                                    any(word in ticker_name for word in company_lower.split() if len(word) > 3)):
+                                    stock_code = ticker_candidate
+                                    logger.info(f"Auto-detected stock code {stock_code} for {company_name}")
+                                    break
+                        except:
+                            continue
+                except ImportError:
+                    logger.debug("yfinance not available for auto-ticker lookup")
+                except Exception as e:
+                    logger.debug(f"Auto-ticker lookup failed: {e}")
+            
             # 清理公司名称（移除常见的无意义词汇）
             if company_name:
-                # 移除常见的无意义词汇
-                stop_words = ['的', '这个', '这只', '一下', '看看', '了解', '分析', '帮我', '我想', '给我', '财务状况', '投资价值', '基本面情况', '这只股票', '这个股票']
-                for word in stop_words:
+                # 移除中文无意义词汇
+                chinese_stop_words = ['的', '这个', '这只', '一下', '看看', '了解', '分析', '帮我', '我想', '给我', '财务状况', '投资价值', '基本面情况', '这只股票', '这个股票']
+                for word in chinese_stop_words:
                     company_name = company_name.replace(word, '').strip()
+                
+                # 移除英文无意义词汇
+                english_stop_words = ['the', 'a', 'an', 'this', 'that', 'stock', 'company', 'inc', 'corp', 'ltd', 'please', 'analyze', 'analysis', 'check', 'look', 'tell', 'show', 'what', 'about', 'invest', 'buy', 'worth', 'should', 'good']
+                words = company_name.split()
+                company_name = ' '.join([w for w in words if w.lower() not in english_stop_words])
+                company_name = company_name.strip()
                 
                 # 如果公司名称太短（少于2个字符），可能是误匹配
                 if len(company_name) < 2:
@@ -404,7 +569,7 @@ async def main():
         company_name, stock_code = extract_stock_info(user_query)
 
         # 记录提取结果
-        logger.info(f"从查询中提取 - 公司名称: {company_name}, 股票代码: {stock_code}")
+        logger.info(f"Extracted from query - Company name: {company_name}, Stock code: {stock_code}")
 
         # ============================================================================
         # 4. 时间信息处理
@@ -421,7 +586,7 @@ async def main():
         # 格式化完整的时间信息
         current_time_info = f"{current_date_cn} ({current_date_en}) {current_weekday_cn} {current_time}"
 
-        logger.info(f"当前时间: {current_time_info}")
+        logger.info(f"Current time: {current_time_info}")
 
         # ============================================================================
         # 5. 准备初始状态数据
@@ -444,13 +609,24 @@ async def main():
             
         # 添加股票代码（如果提取到），并添加交易所前缀
         if stock_code:
-            # 根据股票代码规则添加交易所前缀
-            if stock_code.startswith('6'):
-                initial_data["stock_code"] = f"sh.{stock_code}"  # 上海证券交易所
+            # Check if it's a US stock code (1-5 uppercase letters)
+            # re module is already imported at the top of the file
+            if re.match(r'^[A-Z]{1,5}$', stock_code.upper()):
+                # US stock code - use as is (e.g., AAPL, TSLA)
+                initial_data["stock_code"] = stock_code.upper()
+                initial_data["market"] = "US"
+            elif stock_code.startswith('6'):
+                # A-share: Shanghai Stock Exchange
+                initial_data["stock_code"] = f"sh.{stock_code}"
+                initial_data["market"] = "A-share"
             elif stock_code.startswith('0') or stock_code.startswith('3'):
-                initial_data["stock_code"] = f"sz.{stock_code}"  # 深圳证券交易所
+                # A-share: Shenzhen Stock Exchange
+                initial_data["stock_code"] = f"sz.{stock_code}"
+                initial_data["market"] = "A-share"
             else:
+                # Unknown format - try to use as is
                 initial_data["stock_code"] = stock_code
+                initial_data["market"] = "Unknown"
 
         # 创建LangGraph工作流的初始状态
         initial_state = AgentState(
@@ -464,24 +640,25 @@ async def main():
         # ============================================================================
         
         # 显示分析开始信息
-        print(f"\n{WAIT_ICON} 正在开始对 '{user_query}' 进行金融分析...")
+        print(f"\n{WAIT_ICON} Starting financial analysis for '{user_query}'...")
         if company_name:
-            print(f"{WAIT_ICON} 分析公司: {company_name}")
+            print(f"{WAIT_ICON} Company: {company_name}")
         if stock_code:
-            print(f"{WAIT_ICON} 股票代码: {stock_code}")
+            print(f"{WAIT_ICON} Stock code: {stock_code}")
         logger.info(
             f"Starting financial analysis workflow for query: '{user_query}'")
 
-        # 显示分析阶段提示
-        print(f"\n{WAIT_ICON} 正在执行基本面分析...")
-        print(f"{WAIT_ICON} 正在执行技术面分析...")
-        print(f"{WAIT_ICON} 正在执行估值分析...")
-        print(f"{WAIT_ICON} 正在执行新闻分析...")
-        print(f"{WAIT_ICON} 这可能需要几分钟时间，请耐心等待...\n")
+        # 显示分析阶段提示（串行执行）
+        print(f"\n{WAIT_ICON} Running analysis in sequence (to avoid resource conflicts):")
+        print(f"{WAIT_ICON}   1/4 Fundamental analysis...")
+        print(f"{WAIT_ICON}   2/4 Technical analysis...")
+        print(f"{WAIT_ICON}   3/4 Valuation analysis...")
+        print(f"{WAIT_ICON}   4/4 News analysis...")
+        print(f"{WAIT_ICON} This may take a few minutes, please wait...\n")
 
         # 调用工作流 - 这是阻塞调用，会等待所有智能体完成
         final_state = await app.ainvoke(initial_state)
-        print(f"{SUCCESS_ICON} 分析完成！")
+        print(f"{SUCCESS_ICON} Analysis completed!")
         logger.info("Workflow execution completed successfully")
 
         # ============================================================================
@@ -490,13 +667,13 @@ async def main():
         
         # 提取并打印最终报告
         if final_state and final_state.get("data") and "final_report" in final_state["data"]:
-            print("\n--- 最终分析报告 (Final Analysis Report) ---\n")
+            print("\n--- Final Analysis Report ---\n")
             # print(final_state["data"]["final_report"])
 
             # 显示报告文件路径（如果可用）
             if "report_path" in final_state["data"]:
                 print(
-                    f"\n{SUCCESS_ICON} 报告已保存到: {final_state['data']['report_path']}")
+                    f"\n{SUCCESS_ICON} Report saved to: {final_state['data']['report_path']}")
                 logger.info(
                     f"Report saved to: {final_state['data']['report_path']}")
 
@@ -506,26 +683,26 @@ async def main():
                     final_state["data"]["report_path"]
                 )
         else:
-            print(f"\n{ERROR_ICON} 错误: 无法从工作流中检索最终报告。")
+            print(f"\n{ERROR_ICON} Error: Could not retrieve final report from workflow.")
             logger.error(
                 "Could not retrieve the final report from the workflow")
-            print("调试信息 - 最终状态内容:", final_state)
+            print("Debug info - Final state content:", final_state)
 
         # 完成执行日志记录
         finalize_execution_logger(success=True)
-        print(f"{SUCCESS_ICON} 执行日志已保存到: {execution_logger.execution_dir}")
+        print(f"{SUCCESS_ICON} Execution log saved to: {execution_logger.execution_dir}")
 
     except Exception as e:
         # ============================================================================
         # 8. 错误处理
         # ============================================================================
         
-        print(f"\n{ERROR_ICON} 工作流执行期间发生错误: {e}")
+        print(f"\n{ERROR_ICON} Error occurred during workflow execution: {e}")
         logger.error(f"Error during workflow execution: {e}", exc_info=True)
 
         # 记录错误并完成执行日志
         finalize_execution_logger(success=False, error=str(e))
-        print(f"{ERROR_ICON} 错误日志已保存到: {get_execution_logger().execution_dir}")
+        print(f"{ERROR_ICON} Error log saved to: {get_execution_logger().execution_dir}")
 
 
 # ============================================================================

@@ -115,6 +115,20 @@ async def fundamental_agent(state: AgentState) -> AgentState:
 
                 return {"data": current_data, "messages": current_messages, "metadata": current_metadata}
 
+            # If US stock, drop A-share-only tools to avoid Baostock calls
+            if current_data.get("market") == "US":
+                allowed_tools = {
+                    "get_stock_basic_info", "get_historical_k_data", "get_dividend_data",
+                    "get_adjust_factor_data", "get_profit_data", "get_operation_data",
+                    "get_growth_data", "get_balance_data", "get_cash_flow_data",
+                    "get_dupont_data", "get_performance_express_report",
+                    "get_forecast_report", "get_stock_industry", "get_stock_analysis",
+                    "crawl_news", "get_market_analysis_timeframe", "get_latest_trading_date"
+                }
+                before = len(mcp_tools)
+                mcp_tools = [t for t in mcp_tools if t.name in allowed_tools]
+                logger.info(f"Filtered tools for US market: {before} -> {len(mcp_tools)}")
+
             logger.info(
                 f"{SUCCESS_ICON} FundamentalAgent: Successfully loaded {len(mcp_tools)} tools.")
 
@@ -132,12 +146,16 @@ async def fundamental_agent(state: AgentState) -> AgentState:
             company_name = current_data.get('company_name', 'Unknown')
             current_time_info = current_data.get('current_time_info', '未知时间')
             current_date = current_data.get('current_date', '未知日期')
+            us_range_hint = ""
+            if current_data.get("market") == "US":
+                us_range_hint = "\nNote: For US stocks, please limit the historical price window to the last 14 days to reduce rate limits.\n"
 
             # 构建详细的基本面分析请求，包含多个分析维度
             agent_input = f"""请分析{company_name}（股票代码：{stock_code}）的基本面情况。
 
 当前时间：{current_time_info}
 当前日期：{current_date}
+{us_range_hint}
 
 请进行以下基本面分析：
 1. 获取公司基本信息和行业背景
@@ -149,9 +167,11 @@ async def fundamental_agent(state: AgentState) -> AgentState:
 7. 查询历史分红情况
 8. 提供基本面综合评估和投资价值分析
 
-重要限制：请专注于财务数据和基本面指标分析，不要使用crawl_news工具获取新闻信息。基本面分析应该基于财务报表、财务指标和公司基本面数据，而不是新闻事件。
-
-请使用可用的工具获取实际数据进行分析，而不是基于假设。如果某些数据无法获取，请尝试使用不同的时间周期或其他工具组合，基于可用信息提供尽可能全面的分析。"""
+重要限制：
+- 请专注于财务数据和基本面指标分析，不要使用crawl_news工具获取新闻信息。基本面分析应该基于财务报表、财务指标和公司基本面数据，而不是新闻事件。
+- 避免重复请求同一ticker的相同数据（基础信息、K线、财报），如已获取请复用结果，减少API调用。
+- 如果无法获取指定股票（{stock_code}）的数据，请报告失败原因，不要自动切换到其他股票代码。
+- 请使用可用的工具获取实际数据进行分析，而不是基于假设。如果某些数据无法获取，请尝试使用不同的时间周期或其他工具组合，基于可用信息提供尽可能全面的分析。"""
 
             logger.info(f"Agent input: {agent_input}")
 
@@ -200,6 +220,42 @@ async def fundamental_agent(state: AgentState) -> AgentState:
                 logger.error(f"Unexpected response format: {type(response)}")
                 logger.error(
                     f"Response keys: {response.keys() if isinstance(response, dict) else 'Not a dict'}")
+            
+            # 7. 错误检测 - 检查是否出现致命错误
+            error_keywords = [
+                "用户未登录",  # Baostock login error
+                "10001001",  # Baostock error code
+                "429",  # Rate limit error
+                "Too Many Requests",
+                "No data found",
+                "symbol may be delisted",
+                "错误的股票代码",
+                "无法获取数据",
+                "ERROR:"  # 工具返回的标准错误前缀
+            ]
+            
+            has_fatal_error = any(keyword in final_output for keyword in error_keywords)
+            
+            # 检查是否错误地使用了A股工具（当市场为US时）
+            if current_data.get("market") == "US":
+                a_share_keywords = ["sh.", "sz.", "深证", "上证", "A股"]
+                if any(keyword in final_output for keyword in a_share_keywords):
+                    logger.error(f"{ERROR_ICON} CRITICAL: US stock analysis used A-share data!")
+                    has_fatal_error = True
+                    final_output += "\n\n⚠️ 错误：检测到使用了A股数据分析美股，这可能导致结果不准确。"
+            
+            if has_fatal_error:
+                logger.error(f"{ERROR_ICON} FATAL ERROR detected in analysis output. Marking as failed.")
+                current_data["fundamental_analysis_error"] = "Fatal error detected in analysis"
+                current_data["fundamental_analysis"] = f"⚠️ 基本面分析失败\n\n{final_output}"
+                # 记录失败
+                execution_logger.log_agent_complete(
+                    agent_name, current_data, time.time() - agent_start_time, False, "Fatal error detected")
+                return {
+                    "data": current_data,
+                    "messages": current_messages,
+                    "metadata": current_metadata
+                }
 
             logger.info(
                 f"Final extracted analysis length: {len(final_output)} characters")

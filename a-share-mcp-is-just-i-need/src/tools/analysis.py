@@ -62,8 +62,8 @@ def register_analysis_tools(app: FastMCP, active_data_source: FinancialDataSourc
             if analysis_type in ["technical", "comprehensive"]:
                 # 获取历史价格
                 end_date = datetime.now().strftime("%Y-%m-%d")
-                start_date = (datetime.now() - timedelta(days=180)
-                              ).strftime("%Y-%m-%d")
+                # Limit historical window to last 14 days to reduce request volume/rate limits
+                start_date = (datetime.now() - timedelta(days=14)).strftime("%Y-%m-%d")
                 price_data = active_data_source.get_historical_k_data(
                     code=code, start_date=start_date, end_date=end_date
                 )

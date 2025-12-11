@@ -65,12 +65,14 @@ class FinancialDataSource(ABC):
         pass
 
     @abstractmethod
-    def get_stock_basic_info(self, code: str) -> pd.DataFrame:
+    def get_stock_basic_info(self, code: str, fields: Optional[List[str]] = None) -> pd.DataFrame:
         """
         Fetches basic information for a given stock code.
 
         Args:
-            code: The stock code (e.g., 'sh.600000', 'sz.000001').
+            code: The stock code (e.g., 'sh.600000', 'sz.000001', 'AAPL').
+            fields: Optional list of specific fields to retrieve. If None,
+                    retrieves all available basic information fields.
 
         Returns:
             A pandas DataFrame containing the basic stock information.
