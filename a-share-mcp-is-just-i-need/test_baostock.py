@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-BaostockDataSource完整功能测试脚本
+Complete Test Script for BaostockDataSource
 """
 
 import sys
@@ -10,7 +10,7 @@ import logging
 from datetime import datetime, timedelta
 import pandas as pd
 
-# 添加项目路径
+# Add project path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_dir = os.path.join(current_dir, 'a-share-mcp-is-just-i-need')
 sys.path.append(project_dir)
@@ -18,20 +18,21 @@ sys.path.append(project_dir)
 from src.baostock_data_source import BaostockDataSource
 from src.data_source_interface import NoDataFoundError, DataSourceError
 
-# 配置日志
+# Logging configuration
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
+
 class CompleteBaostockDataSourceTester:
-    """BaostockDataSource完整功能测试类"""
-    
+    """Full-feature tester for BaostockDataSource"""
+
     def __init__(self):
-        """初始化测试器"""
+        """Initialize the tester"""
         self.data_source = BaostockDataSource()
-        self.test_stock_code = "sh.603871"  # 嘉友国际物流股份有限公司
+        self.test_stock_code = "sh.603871"  # Jiayou International Logistics Co., Ltd.
         self.test_year = "2023"
         self.test_quarter = 4
         self.test_start_date = "2023-01-01"
@@ -40,51 +41,42 @@ class CompleteBaostockDataSourceTester:
         self.success_count = 0
         self.fail_count = 0
         self.no_data_count = 0
-        
+
     def test_function(self, func_name: str, test_func, *args, **kwargs):
-        """通用测试函数"""
+        """Generic test runner"""
         self.test_count += 1
-        print(f"\n{'='*60}")
-        print(f"测试 {self.test_count}: {func_name}")
-        print(f"{'='*60}")
-        
+        print(f"\n{'=' * 60}")
+        print(f"Test {self.test_count}: {func_name}")
+        print(f"{'=' * 60}")
+
         try:
             result = test_func(*args, **kwargs)
-            print(f"✅ {func_name} 测试成功！")
-            print(f"   数据条数：{len(result)}")run
-            print(f"   数据列：{list(result.columns)}")
-            
+            print(f"✅ {func_name} succeeded!")
+            print(f"   Number of rows: {len(result)}")
+            print(f"   Columns: {list(result.columns)}")
+
             if len(result) > 0:
-                print(f"   数据预览（前3条）：")
+                print(f"   Preview (first 3 rows):")
                 print(result.head(3).to_string(index=False))
             else:
-                print("   数据为空")
-                
+                print("   Data is empty")
+
             self.success_count += 1
             return True
-            
+
         except NoDataFoundError as e:
-            print(f"⚠️ {func_name} 无数据：{e}")
+            print(f"⚠️ {func_name} returned no data: {e}")
             self.no_data_count += 1
             return True
         except Exception as e:
-            print(f"❌ {func_name} 测试失败：{e}")
+            print(f"❌ {func_name} failed: {e}")
             self.fail_count += 1
             return False
-            
-        except NoDataFoundError as e:
-            print(f"⚠️ {func_name} 无数据：{e}")
-            self.no_data_count += 1
-            return True
-        except Exception as e:
-            print(f"❌ {func_name} 测试失败：{e}")
-            self.fail_count += 1
-            return False
-    
-    # ==================== 股票数据功能测试 ====================
-    
+
+    # ==================== Stock Data Tests ====================
+
     def test_1_get_historical_k_data(self):
-        """测试1：K线数据获取"""
+        """Test 1: Historical K-line data"""
         return self.test_function(
             "get_historical_k_data",
             self.data_source.get_historical_k_data,
@@ -94,17 +86,17 @@ class CompleteBaostockDataSourceTester:
             frequency="d",
             adjust_flag="3"
         )
-    
+
     def test_2_get_stock_basic_info(self):
-        """测试2：股票基本信息"""
+        """Test 2: Stock basic info"""
         return self.test_function(
             "get_stock_basic_info",
             self.data_source.get_stock_basic_info,
             code=self.test_stock_code
         )
-    
+
     def test_3_get_dividend_data(self):
-        """测试3：分红数据"""
+        """Test 3: Dividend data"""
         return self.test_function(
             "get_dividend_data",
             self.data_source.get_dividend_data,
@@ -112,9 +104,9 @@ class CompleteBaostockDataSourceTester:
             year=self.test_year,
             year_type="report"
         )
-    
+
     def test_4_get_adjust_factor_data(self):
-        """测试4：复权因子数据"""
+        """Test 4: Adjust factor data"""
         return self.test_function(
             "get_adjust_factor_data",
             self.data_source.get_adjust_factor_data,
@@ -122,11 +114,11 @@ class CompleteBaostockDataSourceTester:
             start_date=self.test_start_date,
             end_date=self.test_end_date
         )
-    
-    # ==================== 财务数据功能测试 ====================
-    
+
+    # ==================== Financial Data Tests ====================
+
     def test_5_get_profit_data(self):
-        """测试5：盈利能力数据"""
+        """Test 5: Profitability data"""
         return self.test_function(
             "get_profit_data",
             self.data_source.get_profit_data,
@@ -134,9 +126,9 @@ class CompleteBaostockDataSourceTester:
             year=self.test_year,
             quarter=self.test_quarter
         )
-    
+
     def test_6_get_operation_data(self):
-        """测试6：运营能力数据"""
+        """Test 6: Operational ability data"""
         return self.test_function(
             "get_operation_data",
             self.data_source.get_operation_data,
@@ -144,9 +136,9 @@ class CompleteBaostockDataSourceTester:
             year=self.test_year,
             quarter=self.test_quarter
         )
-    
+
     def test_7_get_growth_data(self):
-        """测试7：成长能力数据"""
+        """Test 7: Growth ability data"""
         return self.test_function(
             "get_growth_data",
             self.data_source.get_growth_data,
@@ -154,9 +146,9 @@ class CompleteBaostockDataSourceTester:
             year=self.test_year,
             quarter=self.test_quarter
         )
-    
+
     def test_8_get_balance_data(self):
-        """测试8：偿债能力数据"""
+        """Test 8: Solvency data"""
         return self.test_function(
             "get_balance_data",
             self.data_source.get_balance_data,
@@ -164,9 +156,9 @@ class CompleteBaostockDataSourceTester:
             year=self.test_year,
             quarter=self.test_quarter
         )
-    
+
     def test_9_get_cash_flow_data(self):
-        """测试9：现金流数据"""
+        """Test 9: Cash flow data"""
         return self.test_function(
             "get_cash_flow_data",
             self.data_source.get_cash_flow_data,
@@ -174,9 +166,9 @@ class CompleteBaostockDataSourceTester:
             year=self.test_year,
             quarter=self.test_quarter
         )
-    
+
     def test_10_get_dupont_data(self):
-        """测试10：杜邦分析数据"""
+        """Test 10: DuPont analysis"""
         return self.test_function(
             "get_dupont_data",
             self.data_source.get_dupont_data,
@@ -184,11 +176,11 @@ class CompleteBaostockDataSourceTester:
             year=self.test_year,
             quarter=self.test_quarter
         )
-    
-    # ==================== 业绩报告功能测试 ====================
-    
+
+    # ==================== Performance Reports ====================
+
     def test_11_get_performance_express_report(self):
-        """测试11：业绩快报数据"""
+        """Test 11: Performance express report"""
         return self.test_function(
             "query_performance_express_report",
             self.data_source.get_performance_express_report,
@@ -196,9 +188,9 @@ class CompleteBaostockDataSourceTester:
             start_date="2015-01-01",
             end_date="2015-12-31"
         )
-    
+
     def test_12_get_forecast_report(self):
-        """测试12：业绩预告数据"""
+        """Test 12: Performance forecast report"""
         return self.test_function(
             "get_forecast_report",
             self.data_source.get_forecast_report,
@@ -206,239 +198,229 @@ class CompleteBaostockDataSourceTester:
             start_date=self.test_start_date,
             end_date=self.test_end_date
         )
-    
-    # ==================== 市场数据功能测试 ====================
-    
+
+    # ==================== Market Data Tests ====================
+
     def test_13_get_stock_industry(self):
-        """测试13：行业分类数据"""
+        """Test 13: Stock industry classification"""
         return self.test_function(
             "get_stock_industry",
             self.data_source.get_stock_industry,
             code=self.test_stock_code
         )
-    
+
     def test_14_get_sz50_stocks(self):
-        """测试14：上证50成分股"""
+        """Test 14: SSE 50 constituent stocks"""
         return self.test_function(
             "get_sz50_stocks",
             self.data_source.get_sz50_stocks
         )
-    
+
     def test_15_get_hs300_stocks(self):
-        """测试15：沪深300成分股"""
+        """Test 15: CSI 300 constituent stocks"""
         return self.test_function(
             "get_hs300_stocks",
             self.data_source.get_hs300_stocks
         )
-    
+
     def test_16_get_zz500_stocks(self):
-        """测试16：中证500成分股"""
+        """Test 16: CSI 500 constituent stocks"""
         return self.test_function(
             "get_zz500_stocks",
             self.data_source.get_zz500_stocks
         )
-    
+
     def test_17_get_trade_dates(self):
-        """测试17：交易日历数据"""
+        """Test 17: Trading calendar"""
         return self.test_function(
             "get_trade_dates",
             self.data_source.get_trade_dates,
             start_date="2023-01-01",
             end_date="2023-01-31"
         )
-    
+
     def test_18_get_all_stock(self):
-        """测试18：全市场股票列表"""
+        """Test 18: Full market stock list"""
         return self.test_function(
             "query_all_stock",
             self.data_source.get_all_stock,
             "2017-06-30"
         )
-    
-    # ==================== 宏观经济数据功能测试 ====================
-    
+
+    # ==================== Macroeconomic Data Tests ====================
+
     def test_19_get_deposit_rate_data(self):
-        """测试19：存款利率数据"""
+        """Test 19: Deposit rate data"""
         return self.test_function(
             "query_deposit_rate_data",
             self.data_source.get_deposit_rate_data,
             start_date="2015-01-01",
             end_date="2015-12-31"
         )
-    
+
     def test_20_get_loan_rate_data(self):
-        """测试20：贷款利率数据"""
+        """Test 20: Loan rate data"""
         return self.test_function(
             "query_loan_rate_data",
             self.data_source.get_loan_rate_data,
             start_date="2015-01-01",
             end_date="2015-12-31"
         )
-    
+
     def test_21_get_required_reserve_ratio_data(self):
-        """测试21：存款准备金率数据"""
+        """Test 21: Required reserve ratio data"""
         return self.test_function(
             "query_required_reserve_ratio_data",
             self.data_source.get_required_reserve_ratio_data,
             start_date="2015-01-01",
             end_date="2015-12-31"
         )
-    
+
     def test_22_get_money_supply_data_month(self):
-        """测试22：月度货币供应量数据（修复后）"""
+        """Test 22: Monthly money supply data"""
         return self.test_function(
             "get_money_supply_data_month",
             self.data_source.get_money_supply_data_month,
             start_date="2023-01",
             end_date="2023-12"
         )
-    
+
     def test_23_get_money_supply_data_year(self):
-        """测试23：年度货币供应量数据（修复后）"""
+        """Test 23: Yearly money supply data"""
         return self.test_function(
             "get_money_supply_data_year",
             self.data_source.get_money_supply_data_year,
             start_date="2023",
             end_date="2023"
         )
-    
-    # def test_24_get_shibor_data(self):
-    #     """测试24：SHIBOR数据（检查支持）"""
-    #     return self.test_function(
-    #         "get_shibor_data",
-    #         self.data_source.get_shibor_data,
-    #         start_date="2023-01-01",
-    #         end_date="2023-12-31"
-    #     )
-    
-    # ==================== 新闻爬虫功能测试 ====================
-    
+
+    # ==================== News Crawler Test ====================
+
     def test_25_crawl_news(self):
-        """测试25：新闻爬虫功能"""
-        print(f"\n{'='*60}")
-        print(f"测试 {self.test_count + 1}: crawl_news")
-        print(f"{'='*60}")
-        
+        """Test 25: News crawling"""
+        print(f"\n{'=' * 60}")
+        print(f"Test {self.test_count + 1}: crawl_news")
+        print(f"{'=' * 60}")
+
         test_queries = [
-            "嘉友国际",
+            "Jiayou International",
         ]
-        
+
         success_count = 0
         total_count = len(test_queries)
-        
+
         for query in test_queries:
-            print(f"测试查询: '{query}'")
+            print(f"Query: '{query}'")
             print("-" * 50)
-            
+
             try:
                 result = self.data_source.crawl_news(query, 3)
-                print("✅ 爬取新闻成功！")
-                print(f"   查询: {query}")
-                print(f"   结果: {result}")
+                print("✅ News crawling succeeded!")
+                print(f"   Query: {query}")
+                print(f"   Result: {result}")
                 success_count += 1
-                
+
             except Exception as e:
-                print(f"❌ 爬取新闻失败: {e}")
-            
+                print(f"❌ News crawling failed: {e}")
+
             print("\n" + "=" * 60 + "\n")
-        
+
         self.test_count += 1
         if success_count == total_count:
             self.success_count += 1
-            print(f"✅ crawl_news 测试成功！({success_count}/{total_count})")
+            print(f"✅ crawl_news test succeeded! ({success_count}/{total_count})")
         else:
             self.fail_count += 1
-            print(f"❌ crawl_news 测试失败！({success_count}/{total_count})")
-        
+            print(f"❌ crawl_news test failed! ({success_count}/{total_count})")
+
         return success_count == total_count
-    
-    
-    # ==================== 运行所有测试 ====================
-    
+
+    # ==================== Run All Tests ====================
+
     def run_all_tests(self):
-        """运行所有测试"""
-        print("🚀 开始测试BaostockDataSource所有功能")
-        print(f"📊 测试股票：{self.test_stock_code} (嘉友国际物流股份有限公司)")
-        print(f"📅 测试时间范围：{self.test_start_date} 到 {self.test_end_date}")
-        print(f"📈 测试年份：{self.test_year}年Q{self.test_quarter}")
-        
-        # 运行所有测试
+        """Run all tests"""
+        print("🚀 Starting full BaostockDataSource test")
+        print(f"📊 Test Stock: {self.test_stock_code} (Jiayou International Logistics Co., Ltd.)")
+        print(f"📅 Test date range: {self.test_start_date} to {self.test_end_date}")
+        print(f"📈 Test year: {self.test_year} Q{self.test_quarter}")
+
+        # Run all tests
         tests = [
-            # 股票数据功能
+            # Stock data
             self.test_1_get_historical_k_data,
             self.test_2_get_stock_basic_info,
             self.test_3_get_dividend_data,
             self.test_4_get_adjust_factor_data,
-            
-            # 财务数据功能
+
+            # Financial data
             self.test_5_get_profit_data,
             self.test_6_get_operation_data,
             self.test_7_get_growth_data,
             self.test_8_get_balance_data,
             self.test_9_get_cash_flow_data,
             self.test_10_get_dupont_data,
-            
-            # 业绩报告功能
+
+            # Performance reports
             self.test_11_get_performance_express_report,
             self.test_12_get_forecast_report,
-            
-            # 市场数据功能
+
+            # Market data
             self.test_13_get_stock_industry,
             self.test_14_get_sz50_stocks,
             self.test_15_get_hs300_stocks,
             self.test_16_get_zz500_stocks,
             self.test_17_get_trade_dates,
             self.test_18_get_all_stock,
-            
-            # 宏观经济数据功能
+
+            # Macroeconomic data
             self.test_19_get_deposit_rate_data,
             self.test_20_get_loan_rate_data,
             self.test_21_get_required_reserve_ratio_data,
             self.test_22_get_money_supply_data_month,
             self.test_23_get_money_supply_data_year,
-            # self.test_24_get_shibor_data,
-            
-            # 新闻爬虫功能
+
+            # News crawling
             self.test_25_crawl_news,
         ]
-        
+
         for test in tests:
             test()
-        
-        # 输出测试结果统计
-        print("\n" + "="*60)
-        print("📊 完整测试结果统计")
-        print("="*60)
-        print(f"总测试数：{self.test_count}")
-        print(f"成功数：{self.success_count}")
-        print(f"无数据数：{self.no_data_count}")
-        print(f"失败数：{self.fail_count}")
-        print(f"成功率：{(self.success_count + self.no_data_count)/self.test_count*100:.1f}%")
-        
-        # 详细分类统计
-        print(f"\n📈 详细分类：")
-        print(f"   ✅ 功能正常：{self.success_count}个")
-        print(f"   ⚠️ 无数据：{self.no_data_count}个")
-        print(f"   ❌ 功能失败：{self.fail_count}个")
-    
-        
+
+        # Output summary
+        print("\n" + "=" * 60)
+        print("📊 Full test summary")
+        print("=" * 60)
+        print(f"Total tests: {self.test_count}")
+        print(f"Success: {self.success_count}")
+        print(f"No data: {self.no_data_count}")
+        print(f"Failed: {self.fail_count}")
+        print(f"Success rate: {(self.success_count + self.no_data_count) / self.test_count * 100:.1f}%")
+
+        # Detailed breakdown
+        print(f"\n📈 Breakdown:")
+        print(f"   ✅ Successful: {self.success_count}")
+        print(f"   ⚠️ No data: {self.no_data_count}")
+        print(f"   ❌ Failed: {self.fail_count}")
+
         if self.fail_count == 0:
-            print("\n🎉 所有功能测试通过！")
+            print("\n🎉 All tests passed!")
         else:
-            print(f"\n⚠️ 有{self.fail_count}个功能测试失败，请检查相关功能")
-        
-        print("="*60)
+            print(f"\n⚠️ {self.fail_count} tests failed. Please check the corresponding functions.")
+
+        print("=" * 60)
+
 
 def main():
-    """主函数"""
+    """Main function"""
     try:
         tester = CompleteBaostockDataSourceTester()
         tester.run_all_tests()
     except KeyboardInterrupt:
-        print("\n⚠️ 测试被用户中断")
+        print("\n⚠️ Test interrupted by user")
     except Exception as e:
-        print(f"\n❌ 测试过程中发生错误：{e}")
-        logger.exception("测试过程中发生错误")
+        print(f"\n❌ Error during testing: {e}")
+        logger.exception("Error during testing")
+
 
 if __name__ == "__main__":
-    main() 
+    main()
