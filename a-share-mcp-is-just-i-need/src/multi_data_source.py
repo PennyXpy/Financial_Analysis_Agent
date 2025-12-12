@@ -7,6 +7,8 @@ import pandas as pd
 from .data_source_interface import FinancialDataSource, DataSourceError, NoDataFoundError, LoginError
 from .baostock_data_source import BaostockDataSource
 from .yahoo_finance_data_source import YahooFinanceDataSource
+from .polygon_data_source import PolygonDataSource
+from .finnhub_data_source import FinnhubDataSource
 
 logger = logging.getLogger(__name__)
 
@@ -63,8 +65,10 @@ class MultiDataSource(FinancialDataSource):
             logger.info("🚀 [Locked] Initializing MultiDataSource data sources...")
             self.baostock = BaostockDataSource()
             self.yahoo = YahooFinanceDataSource()
+            self.finnhub = FinnhubDataSource()
+            self.polygon = PolygonDataSource()
             self._initialized = True
-            logger.info("✅ MultiDataSource initialized with Baostock and Yahoo Finance data sources")
+            logger.info("✅ MultiDataSource initialized: Baostock (A), Polygon (US market), Finnhub (US financials/news), Yahoo (fallback)")
 
     def _is_a_share_code(self, code: str) -> bool:
         """Check if code is A-share format (sh.xxxxxx or sz.xxxxxx)"""
@@ -81,13 +85,9 @@ class MultiDataSource(FinancialDataSource):
         if self._is_a_share_code(code):
             logger.debug(f"Using Baostock data source for A-share code: {code}")
             return self.baostock
-        elif self._is_us_stock_code(code):
-            logger.debug(f"Using Yahoo Finance data source for US stock code: {code}")
-            return self.yahoo
-        else:
-            # Try Yahoo Finance first for unknown formats (might be international stocks)
-            logger.debug(f"Unknown code format {code}, trying Yahoo Finance")
-            return self.yahoo
+        # US / unknown formats handled per-method below
+        logger.debug(f"Non A-share code detected: {code}, method-level routing will decide.")
+        return self.yahoo
 
     def get_historical_k_data(
         self,
@@ -99,13 +99,40 @@ class MultiDataSource(FinancialDataSource):
         fields: Optional[List[str]] = None,
     ) -> pd.DataFrame:
         """Get historical K-line data from appropriate data source"""
-        data_source = self._get_data_source(code)
-        return data_source.get_historical_k_data(code, start_date, end_date, frequency, adjust_flag, fields)
+        # A-share -> Baostock
+        if self._is_a_share_code(code):
+            return self.baostock.get_historical_k_data(code, start_date, end_date, frequency, adjust_flag, fields)
+
+        # US -> Polygon primary, Yahoo fallback
+        if self._is_us_stock_code(code):
+            try:
+                return self.polygon.get_historical_k_data(code, start_date, end_date, frequency, adjust_flag, fields)
+            except (NoDataFoundError, DataSourceError) as e:
+                logger.warning(f"Polygon K-line failed for {code}: {e}, falling back to Finnhub.")
+                try:
+                    return self.finnhub.get_historical_k_data(code, start_date, end_date, frequency, adjust_flag, fields)
+                except Exception as e2:
+                    logger.warning(f"Finnhub K-line failed for {code}: {e2}, falling back to Yahoo.")
+                    return self.yahoo.get_historical_k_data(code, start_date, end_date, frequency, adjust_flag, fields)
+
+        # Unknown -> Yahoo
+        return self.yahoo.get_historical_k_data(code, start_date, end_date, frequency, adjust_flag, fields)
 
     def get_stock_basic_info(self, code: str, fields: Optional[List[str]] = None) -> pd.DataFrame:
         """Get basic stock info from appropriate data source"""
-        data_source = self._get_data_source(code)
-        return data_source.get_stock_basic_info(code, fields)
+        if self._is_a_share_code(code):
+            return self.baostock.get_stock_basic_info(code, fields)
+        if self._is_us_stock_code(code):
+            try:
+                return self.polygon.get_stock_basic_info(code, fields)
+            except (NoDataFoundError, DataSourceError) as e:
+                logger.warning(f"Polygon basic info failed for {code}: {e}, falling back to Finnhub.")
+                try:
+                    return self.finnhub.get_stock_basic_info(code, fields)
+                except Exception as e2:
+                    logger.warning(f"Finnhub basic info failed for {code}: {e2}, falling back to Yahoo.")
+                    return self.yahoo.get_stock_basic_info(code, fields)
+        return self.yahoo.get_stock_basic_info(code, fields)
 
     def get_trade_dates(self, start_date: Optional[str] = None, end_date: Optional[str] = None) -> pd.DataFrame:
         """Get trading dates (only available from Baostock for A-shares)"""
@@ -161,66 +188,93 @@ class MultiDataSource(FinancialDataSource):
     # Financial report methods - delegate to appropriate source
     def get_profit_data(self, code: str, year: str, quarter: int) -> pd.DataFrame:
         """Get profit data from appropriate data source"""
-        data_source = self._get_data_source(code)
-        if hasattr(data_source, 'get_profit_data'):
-            return data_source.get_profit_data(code, year, quarter)
-        return pd.DataFrame()
+        if self._is_a_share_code(code):
+            return self.baostock.get_profit_data(code, year, quarter)
+        # US: Finnhub primary, Yahoo fallback
+        try:
+            return self.finnhub.get_profit_data(code, year, quarter)
+        except Exception as e:
+            logger.warning(f"Finnhub profit failed for {code}: {e}, falling back to Yahoo.")
+            return self.yahoo.get_profit_data(code, year, quarter)
 
     def get_operation_data(self, code: str, year: str, quarter: int) -> pd.DataFrame:
         """Get operation data from appropriate data source"""
-        data_source = self._get_data_source(code)
-        if hasattr(data_source, 'get_operation_data'):
-            return data_source.get_operation_data(code, year, quarter)
-        return pd.DataFrame()
+        if self._is_a_share_code(code):
+            return self.baostock.get_operation_data(code, year, quarter)
+        return self.finnhub.get_operation_data(code, year, quarter)
 
     def get_growth_data(self, code: str, year: str, quarter: int) -> pd.DataFrame:
         """Get growth data from appropriate data source"""
-        data_source = self._get_data_source(code)
-        if hasattr(data_source, 'get_growth_data'):
-            return data_source.get_growth_data(code, year, quarter)
-        return pd.DataFrame()
+        if self._is_a_share_code(code):
+            return self.baostock.get_growth_data(code, year, quarter)
+        try:
+            return self.finnhub.get_growth_data(code, year, quarter)
+        except Exception:
+            return pd.DataFrame()
 
     def get_balance_data(self, code: str, year: str, quarter: int) -> pd.DataFrame:
         """Get balance sheet data from appropriate data source"""
-        data_source = self._get_data_source(code)
-        if hasattr(data_source, 'get_balance_data'):
-            return data_source.get_balance_data(code, year, quarter)
-        return pd.DataFrame()
+        if self._is_a_share_code(code):
+            return self.baostock.get_balance_data(code, year, quarter)
+        try:
+            return self.finnhub.get_balance_data(code, year, quarter)
+        except Exception as e:
+            logger.warning(f"Finnhub balance failed for {code}: {e}, falling back to Yahoo.")
+            return self.yahoo.get_balance_data(code, year, quarter)
 
     def get_cash_flow_data(self, code: str, year: str, quarter: int) -> pd.DataFrame:
         """Get cash flow data from appropriate data source"""
-        data_source = self._get_data_source(code)
-        if hasattr(data_source, 'get_cash_flow_data'):
-            return data_source.get_cash_flow_data(code, year, quarter)
-        return pd.DataFrame()
+        if self._is_a_share_code(code):
+            return self.baostock.get_cash_flow_data(code, year, quarter)
+        try:
+            return self.finnhub.get_cash_flow_data(code, year, quarter)
+        except Exception as e:
+            logger.warning(f"Finnhub cash flow failed for {code}: {e}, falling back to Yahoo.")
+            return self.yahoo.get_cash_flow_data(code, year, quarter)
 
     def get_dupont_data(self, code: str, year: str, quarter: int) -> pd.DataFrame:
         """Get DuPont analysis data from appropriate data source"""
-        data_source = self._get_data_source(code)
-        if hasattr(data_source, 'get_dupont_data'):
-            return data_source.get_dupont_data(code, year, quarter)
-        return pd.DataFrame()
+        if self._is_a_share_code(code):
+            return self.baostock.get_dupont_data(code, year, quarter)
+        try:
+            return self.finnhub.get_dupont_data(code, year, quarter)
+        except Exception:
+            return pd.DataFrame()
 
     def get_dividend_data(self, code: str, year: str, year_type: str = "report") -> pd.DataFrame:
         """Get dividend data from appropriate data source"""
-        data_source = self._get_data_source(code)
-        if hasattr(data_source, 'get_dividend_data'):
-            return data_source.get_dividend_data(code, year, year_type)
-        return pd.DataFrame()
+        if self._is_a_share_code(code):
+            return self.baostock.get_dividend_data(code, year, year_type)
+        if self._is_us_stock_code(code):
+            try:
+                return self.polygon.get_dividend_data(code, year, year_type)
+            except (NoDataFoundError, DataSourceError) as e:
+                logger.warning(f"Polygon dividend failed for {code}: {e}, falling back to Finnhub.")
+                try:
+                    return self.finnhub.get_dividend_data(code, year, year_type)
+                except Exception as e2:
+                    logger.warning(f"Finnhub dividend failed for {code}: {e2}, falling back to Yahoo.")
+                    return self.yahoo.get_dividend_data(code, year, year_type)
+        return self.yahoo.get_dividend_data(code, year, year_type)
 
     def crawl_news(self, query: str, top_k: int = 10) -> str:
         """Crawl news - try both data sources"""
-        # Try Yahoo Finance first (better for US stocks)
+        # Try Finnhub first for US
+        try:
+            result = self.finnhub.crawl_news(query, top_k)
+            if result and "No news found" not in result:
+                return result
+        except Exception:
+            pass
+        # Fall back to Yahoo
         try:
             result = self.yahoo.crawl_news(query, top_k)
             if result and "No news found" not in result:
                 return result
-        except:
+        except Exception:
             pass
-        
         # Fall back to Baostock
         if hasattr(self.baostock, 'crawl_news'):
             return self.baostock.crawl_news(query, top_k)
-        
         return "No news found."
 

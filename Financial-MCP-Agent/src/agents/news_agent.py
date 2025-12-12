@@ -144,7 +144,26 @@ async def news_agent(state: AgentState) -> AgentState:
                 us_range_hint = "\nNote: For US stocks, please limit the historical price window to the last 14 days to reduce rate limits.\n"
 
             # 构建详细的新闻分析请求，包含多个分析维度
-            agent_input = f"""请对{company_name}（股票代码：{stock_code}）进行新闻分析。
+            if current_data.get("market") == "US":
+                agent_input = f"""Please perform news analysis for {company_name} (ticker: {stock_code}).
+
+Current time: {current_time_info}
+Current date: {current_date}
+{us_range_hint}
+
+Tasks:
+1. Fetch at least 5 latest news items about {company_name}
+2. Sentiment analysis for each news (1-5: 1=negative, 2=slightly negative, 3=neutral, 4=positive, 5=very positive)
+3. Risk assessment for each news (1-5: 1=very low, 2=low, 3=medium, 4=high, 5=very high)
+4. Analyze potential price impact
+5. Identify key events and trends
+6. Provide a consolidated investment view based on news
+
+Important constraints:
+- Avoid duplicate requests for the same ticker’s data; reuse fetched data to reduce API calls.
+- Use available tools to fetch real news; if some news cannot be fetched, provide the most complete analysis possible based on available items."""
+            else:
+                agent_input = f"""请对{company_name}（股票代码：{stock_code}）进行新闻分析。
 
 当前时间：{current_time_info}
 当前日期：{current_date}

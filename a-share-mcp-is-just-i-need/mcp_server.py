@@ -1,6 +1,7 @@
 # Main MCP server file
 import logging
 from datetime import datetime
+import os
 
 from mcp.server.fastmcp import FastMCP
 
@@ -9,6 +10,7 @@ from src.data_source_interface import FinancialDataSource
 from src.baostock_data_source import BaostockDataSource
 from src.multi_data_source import MultiDataSource
 from src.utils import setup_logging
+from dotenv import load_dotenv
 
 # Import registration functions for various tools/modules
 from src.tools.stock_market import register_stock_market_tools
@@ -25,6 +27,10 @@ from src.tools.news_crawler import register_news_crawler_tools
 # You can control the default level here (e.g., logging.DEBUG for more verbose logs)
 setup_logging(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# --- Load environment (.env in project root) ---
+load_dotenv(override=False)
+logger.info("✅ Environment variables loaded for MCP server (including POLYGON_API_KEY if set).")
 
 # --- Dependency Injection ---
 # Use MultiDataSource singleton to support both A-share (Baostock) and US stocks (Yahoo Finance)

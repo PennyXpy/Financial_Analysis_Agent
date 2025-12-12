@@ -151,7 +151,30 @@ async def fundamental_agent(state: AgentState) -> AgentState:
                 us_range_hint = "\nNote: For US stocks, please limit the historical price window to the last 14 days to reduce rate limits.\n"
 
             # 构建详细的基本面分析请求，包含多个分析维度
-            agent_input = f"""请分析{company_name}（股票代码：{stock_code}）的基本面情况。
+            if current_data.get("market") == "US":
+                agent_input = f"""Please analyze the fundamentals of {company_name} (ticker: {stock_code}).
+
+Current time: {current_time_info}
+Current date: {current_date}
+{us_range_hint}
+
+Please perform the following fundamental analysis:
+1. Company overview and industry background
+2. Latest financial statements (balance sheet, income statement, cash flow)
+3. Profitability metrics (gross margin, net margin, ROE, etc.)
+4. Growth metrics (revenue and earnings growth)
+5. Operating efficiency metrics (receivables turnover, inventory turnover)
+6. Solvency metrics (debt ratio, current ratio)
+7. Dividend history
+8. Overall fundamental assessment and investment value
+
+Important constraints:
+- Focus strictly on financial data and fundamental metrics; do NOT use crawl_news.
+- Avoid duplicate requests for the same ticker’s basic info/K-line/financials; reuse data if already fetched to reduce API calls.
+- If data for {stock_code} is unavailable, clearly report the failure; do NOT switch to other tickers.
+- Use available tools to fetch real data; if some data is missing, try other time ranges/tools and provide the most complete analysis possible."""
+            else:
+                agent_input = f"""请分析{company_name}（股票代码：{stock_code}）的基本面情况。
 
 当前时间：{current_time_info}
 当前日期：{current_date}

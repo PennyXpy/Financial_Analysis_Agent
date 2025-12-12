@@ -144,7 +144,29 @@ async def value_agent(state: AgentState) -> AgentState:
                 us_range_hint = "\nNote: For US stocks, please limit the historical price window to the last 14 days to reduce rate limits.\n"
 
             # 构建详细的估值分析请求，包含多个分析维度
-            agent_input = f"""请分析{company_name}（股票代码：{stock_code}）的估值情况。
+            if current_data.get("market") == "US":
+                agent_input = f"""Please analyze the valuation of {company_name} (ticker: {stock_code}).
+
+Current time: {current_time_info}
+Current date: {current_date}
+{us_range_hint}
+
+Please perform the following valuation analysis:
+1. Get company basic info (market cap, price, etc.)
+2. Retrieve and analyze key valuation metrics (P/E, P/B, P/S, etc.)
+3. Compare valuation metrics vs industry averages
+4. Analyze historical valuation trends
+5. Retrieve and analyze dividend data and yield
+6. Estimate intrinsic value
+7. Provide valuation summary and investment view
+
+Important constraints:
+- Focus on valuation and financial data; do NOT use crawl_news.
+- Avoid duplicate requests for the same ticker data (basic, K-line, financials); reuse results to reduce API calls.
+- If data for {stock_code} is unavailable, report the failure; do NOT switch tickers.
+- Use available tools to fetch real data; if some data is missing, try alternative tools/parameters and keep the answer concise."""
+            else:
+                agent_input = f"""请分析{company_name}（股票代码：{stock_code}）的估值情况。
 
 当前时间：{current_time_info}
 当前日期：{current_date}

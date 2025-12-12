@@ -131,7 +131,29 @@ async def technical_agent(state: AgentState) -> AgentState:
                 us_range_hint = "\nNote: For US stocks, please limit the historical price window to the last 14 days to reduce rate limits.\n"
             
             # 构建详细的技术分析请求，包含多个分析维度
-            agent_input = f"""请分析{company_name}（股票代码：{stock_code}）的技术指标。
+            if current_data.get("market") == "US":
+                agent_input = f"""Please analyze the technical indicators of {company_name} (ticker: {stock_code}).
+
+Current time: {current_time_info}
+Current date: {current_date}
+{us_range_hint}
+
+Please perform the following technical analysis:
+1. Get basic info and latest price
+2. Get historical K-line data (suggest last 7–14 days / For US: limit to last 14 days)
+3. Analyze price trends and chart patterns
+4. Analyze volume changes
+5. Compute key technical indicators (MA, MACD, RSI, etc.)
+6. Identify support and resistance levels
+7. Provide a technical summary and short-term outlook
+
+Important constraints:
+- Focus on price/volume/technicals; do NOT use crawl_news.
+- Avoid duplicate requests for the same ticker data (basic, K-line, financials); reuse results to reduce API calls.
+- If data for {stock_code} is unavailable, report the failure and do NOT switch tickers.
+- Use real tool data; avoid assumptions."""
+            else:
+                agent_input = f"""请分析{company_name}（股票代码：{stock_code}）的技术指标。
 
 当前时间：{current_time_info}
 当前日期：{current_date}

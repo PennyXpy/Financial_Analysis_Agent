@@ -236,103 +236,160 @@ async def summary_agent(state: AgentState) -> Dict[str, Any]:
         current_date = current_data.get("current_date", "未知日期")
 
         # 准备汇总的系统提示词
-        system_prompt = f"""
-        你是一个专业金融分析师，负责创建全面、深入的股票分析报告。
-        
-        **重要时间信息：当前实际时间是 {current_time_info}**
-        **分析基准日期：{current_date}**
-        
-        这是真实的当前时间，不是你的训练数据截止时间。请在生成报告时：
-        - 基于实际当前时间来判断数据的时效性
-        - 正确标注"最新"、"近期"、"历史"等时间概念
-        - 在报告中明确标注分析的时间基准点为：{current_date}
-        - 所有时间相关的描述都要基于这个实际日期
-        
-        你的任务是综合四种不同的分析结果：
-        1. 基本面分析 - 关注财务报表、商业模式和公司基本面
-        2. 技术分析 - 关注价格趋势、交易量模式和技术指标
-        3. 估值分析 - 关注估值指标和相对价值
-        4. 新闻分析 - 关注市场情绪、重要事件和媒体报道对股价的影响
+        is_us = current_data.get("market") == "US"
 
-        请创建一份结构清晰、内容连贯的报告，整合所有四种分析的见解。
-        即使某些分析数据不完整或缺失，也请基于可用信息提供最佳的综合分析。
+        if is_us:
+            system_prompt = f"""
+            You are a professional financial analyst creating a comprehensive stock analysis report.
 
-        **严格遵循以下报告格式和结构：**
-        
-        # [公司名称]([股票代码]) 综合分析报告
-        
-        ## 执行摘要
-        [提供简明扼要的总体分析和投资建议，包括风险等级和预期回报]
-        
-        ## 公司概况
-        [简要介绍公司的业务、行业地位、主要产品或服务]
-        
-        ## 基本面分析
-        [详细分析公司财务状况、盈利能力、成长性、资产负债情况等]
-        
-        ## 技术分析
-        [详细分析价格趋势、技术指标、支撑位和阻力位、交易量等]
-        
-        ## 估值分析
-        [详细分析估值指标、与行业平均水平比较、历史估值水平、股息收益率等]
-        
-        ## 新闻分析
-        [详细分析市场情绪、重要新闻事件、媒体报道、分析师评级变化等对股价的影响]
-        
-        ## 综合评估
-        [分析不同分析方法之间的一致点和分歧点，提供更全面的投资视角]
-        
-        ## 风险因素
-        [详细分析潜在的风险因素，包括市场风险、行业风险、公司特定风险等]
-        
-        ## 投资建议
-        [提供明确的投资建议，包括目标价格、投资时间范围、适合的投资者类型等]
-        
-        ## 附录：数据来源与限制
-        [说明数据来源，以及分析过程中遇到的任何数据限制或缺失]
+            **Current actual time: {current_time_info}**
+            **Analysis baseline date: {current_date}**
 
-        输出必须是有效的Markdown格式，使用适当的标题、项目符号和格式。
-        不要包含任何代码块标记，如```markdown或```，直接输出纯Markdown内容。
-        
-        使用专业的金融语言，但保持可读性。报告应该全面且深入，包含足够的细节和数据支持，
-        同时聚焦于最重要的见解，帮助投资者做出决策。
-        
-        **重要提醒：**
-        - 请在报告末尾明确标注分析基准时间：{current_time_info}
-        - 基于这个实际时间来判断所有数据的时效性
-        - 避免使用模糊的时间概念，要基于实际当前时间进行判断
-        - 严格按照上述格式和结构生成报告，确保每个章节都有实质性内容
-        
-        如果某些分析数据不完整或有错误，请在报告中明确说明，并尽可能基于可用信息提供有价值的分析。
-        """
+            Use the real current time (not training cutoff). In the report:
+            - Judge recency based on the actual current time
+            - Mark the analysis baseline as {current_date}
+            - Time-related wording must align with this date
 
-        # 准备汇总提示词
-        user_prompt = f"""
-        Please create a comprehensive analysis report for {company_name} ({stock_code}) based on the following analyses.
-        
-        Original user query: {user_query}
-        
-        FUNDAMENTAL ANALYSIS:
-        {fundamental_analysis}
-        
-        TECHNICAL ANALYSIS:
-        {technical_analysis}
-        
-        VALUE ANALYSIS:
-        {value_analysis}
-        
-        NEWS ANALYSIS:
-        {news_analysis}
-        
-        {"ANALYSIS ISSUES:" if errors else ""}
-        {". ".join(errors) if errors else ""}
-        
-        IMPORTANT: Your output MUST be in valid Markdown format with proper headings, bullet points, 
-        and formatting. Include a clear recommendation section at the end.
-        
-        DO NOT include any code block markers like ```markdown or ``` in your output.
-        Just write pure Markdown content directly.
-        """
+            You will synthesize four analyses:
+            1) Fundamentals
+            2) Technicals
+            3) Valuation
+            4) News
+
+            **Required structure (Markdown, no code fences):**
+            # [Company] ([Ticker]) Comprehensive Analysis Report
+            ## Executive Summary
+            ## Company Overview
+            ## Fundamental Analysis
+            ## Technical Analysis
+            ## Valuation Analysis
+            ## News Analysis
+            ## Integrated Assessment
+            ## Risk Factors
+            ## Investment Recommendation
+            ## Appendix: Data Sources & Limitations
+
+            Use professional yet readable English. Be concise but cover key insights. At the end,
+            clearly state the analysis baseline time: {current_time_info}.
+            If data is missing, state it explicitly and base conclusions on available info.
+            """
+
+            user_prompt = f"""
+            Please create a comprehensive analysis report for {company_name} ({stock_code}) based on the following analyses.
+
+            Original user query: {user_query}
+
+            FUNDAMENTAL ANALYSIS:
+            {fundamental_analysis}
+
+            TECHNICAL ANALYSIS:
+            {technical_analysis}
+
+            VALUATION ANALYSIS:
+            {value_analysis}
+
+            NEWS ANALYSIS:
+            {news_analysis}
+
+            {"ANALYSIS ISSUES:" if errors else ""}
+            {". ".join(errors) if errors else ""}
+
+            IMPORTANT: Output valid Markdown with headings/bullets, include a clear recommendation.
+            Do NOT use code fences. Write plain Markdown.
+            """
+        else:
+            system_prompt = f"""
+            你是一个专业金融分析师，负责创建全面、深入的股票分析报告。
+            
+            **重要时间信息：当前实际时间是 {current_time_info}**
+            **分析基准日期：{current_date}**
+            
+            这是真实的当前时间，不是你的训练数据截止时间。请在生成报告时：
+            - 基于实际当前时间来判断数据的时效性
+            - 正确标注"最新"、"近期"、"历史"等时间概念
+            - 在报告中明确标注分析的时间基准点为：{current_date}
+            - 所有时间相关的描述都要基于这个实际日期
+            
+            你的任务是综合四种不同的分析结果：
+            1. 基本面分析 - 关注财务报表、商业模式和公司基本面
+            2. 技术分析 - 关注价格趋势、交易量模式和技术指标
+            3. 估值分析 - 关注估值指标和相对价值
+            4. 新闻分析 - 关注市场情绪、重要事件和媒体报道对股价的影响
+
+            请创建一份结构清晰、内容连贯的报告，整合所有四种分析的见解。
+            即使某些分析数据不完整或缺失，也请基于可用信息提供最佳的综合分析。
+
+            **严格遵循以下报告格式和结构：**
+            
+            # [公司名称]([股票代码]) 综合分析报告
+            
+            ## 执行摘要
+            [提供简明扼要的总体分析和投资建议，包括风险等级和预期回报]
+            
+            ## 公司概况
+            [简要介绍公司的业务、行业地位、主要产品或服务]
+            
+            ## 基本面分析
+            [详细分析公司财务状况、盈利能力、成长性、资产负债情况等]
+            
+            ## 技术分析
+            [详细分析价格趋势、技术指标、支撑位和阻力位、交易量等]
+            
+            ## 估值分析
+            [详细分析估值指标、与行业平均水平比较、历史估值水平、股息收益率等]
+            
+            ## 新闻分析
+            [详细分析市场情绪、重要新闻事件、媒体报道、分析师评级变化等对股价的影响]
+            
+            ## 综合评估
+            [分析不同分析方法之间的一致点和分歧点，提供更全面的投资视角]
+            
+            ## 风险因素
+            [详细分析潜在的风险因素，包括市场风险、行业风险、公司特定风险等]
+            
+            ## 投资建议
+            [提供明确的投资建议，包括目标价格、投资时间范围、适合的投资者类型等]
+            
+            ## 附录：数据来源与限制
+            [说明数据来源，以及分析过程中遇到的任何数据限制或缺失]
+            
+            输出必须是有效的Markdown格式，使用适当的标题、项目符号和格式。
+            不要包含任何代码块标记，如```markdown或```，直接输出纯Markdown内容。
+            
+            使用专业的金融语言，但保持可读性。报告应该全面且深入，包含足够的细节和数据支持，
+            同时聚焦于最重要的见解，帮助投资者做出决策。
+            
+            **重要提醒：**
+            - 请在报告末尾明确标注分析基准时间：{current_time_info}
+            - 基于这个实际时间来判断所有数据的时效性
+            - 避免使用模糊的时间概念，要基于实际当前时间进行判断
+            - 严格按照上述格式和结构生成报告，确保每个章节都有实质性内容
+            
+            如果某些分析数据不完整或有错误，请在报告中明确说明，并尽可能基于可用信息提供有价值的分析。
+            """
+
+            user_prompt = f"""
+            请基于以下分析为 {company_name}（股票代码：{stock_code}）创建一份综合报告。
+            
+            原始用户请求：{user_query}
+            
+            基本面分析:
+            {fundamental_analysis}
+            
+            技术分析:
+            {technical_analysis}
+            
+            估值分析:
+            {value_analysis}
+            
+            新闻分析:
+            {news_analysis}
+            
+            {"分析问题:" if errors else ""}
+            {". ".join(errors) if errors else ""}
+            
+            输出必须是有效的 Markdown（无代码块），使用清晰标题/要点，并在末尾给出明确的投资建议。
+            """
 
         # 根据模型选择决定使用哪种方式生成报告
         if model_choice == "local":

@@ -4,9 +4,12 @@ langchain-openai==0.3.30
 langchain-core==0.3.74
 baostock==0.8.9
 yfinance==0.2.40
+requests>=2.31.0
+python-dateutil>=2.8.2
 peft==0.17.0
 langchain-mcp-adapters==0.1.9
 transformers==4.51.3
 huggingface-hub==0.34.4
 uv==0.8.12
 bitsandbytes
+openai
