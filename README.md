@@ -87,13 +87,6 @@ Financial_Analysis_Agent/
 
 ---
 
-## 👥 Team
-
-**Project Name:** AlphaAgents  
-**Team Members:** Keying Guo, Le Li, Pingyi Xu, Xiao Xu  
-
----
-
 ## 🪪 License
 Released under the **MIT License**.  
 You are free to use, modify, and distribute this project with attribution.
